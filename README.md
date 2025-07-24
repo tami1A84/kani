@@ -1,0 +1,2 @@
+# kani
+rust-nostr CLIツール
