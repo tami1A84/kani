@@ -22,6 +22,10 @@ enum Command {
     Contact(ContactCommand),
     /// OpenTimestamps
     Ots(OtsCommand),
+    /// Direct Messages
+    Dm(DmCommand),
+    /// NIP-05
+    Nip05(Nip05Command),
 }
 
 #[derive(Parser)]
@@ -120,6 +124,56 @@ pub enum OtsSubcommand {
     },
 }
 
+#[derive(Parser)]
+pub struct DmCommand {
+    #[command(subcommand)]
+    subcommand: DmSubcommand,
+}
+
+#[derive(Subcommand)]
+pub enum DmSubcommand {
+    /// Send a direct message
+    Send {
+        /// Relay to send the event
+        #[clap(short, long)]
+        relay: String,
+        /// Secret key to sign the event
+        #[clap(short, long)]
+        secret_key: String,
+        /// Receiver public key
+        #[clap(long)]
+        receiver: String,
+        /// Message content
+        message: String,
+    },
+    /// Receive direct messages
+    Receive {
+        /// Relay to get the events from
+        #[clap(short, long)]
+        relay: String,
+        /// Secret key to decrypt the messages
+        #[clap(short, long)]
+        secret_key: String,
+    },
+}
+
+#[derive(Parser)]
+pub struct Nip05Command {
+    #[command(subcommand)]
+    subcommand: Nip05Subcommand,
+}
+
+#[derive(Subcommand)]
+pub enum Nip05Subcommand {
+    /// Verify a NIP-05 identifier
+    Verify {
+        /// NIP-05 identifier (user@domain)
+        identifier: String,
+        /// Public key to verify against
+        pubkey: String,
+    },
+}
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -195,7 +249,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ContactSubcommand::Get { relay, pubkey } => {
                 let pubkey = PublicKey::from_bech32(&pubkey)?;
                 let client = Client::default();
-
+                
                 client.add_relay(relay).await?;
                 client.connect().await;
 
@@ -203,7 +257,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .author(pubkey)
                     .kind(Kind::ContactList)
                     .limit(1);
-
+                
                 let events = client.get_events_of(vec![filter], None).await?;
 
                 if let Some(event) = events.first() {
@@ -244,6 +298,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("OTS Attestation sent with id: {}", event_id.to_bech32()?);
 
                 client.shutdown().await?;
+            }
+        },
+        Command::Dm(dm_command) => match dm_command.subcommand {
+            DmSubcommand::Send { relay, secret_key, receiver, message } => {
+                let secret_key = SecretKey::from_bech32(&secret_key)?;
+                let keys = Keys::new(secret_key);
+                let client = Client::new(&keys);
+
+                client.add_relay(relay).await?;
+                client.connect().await;
+
+                let receiver_pubkey = PublicKey::from_bech32(&receiver)?;
+
+                let event_id = client.send_direct_msg(receiver_pubkey, message, None).await?;
+                println!("DM sent with id: {}", event_id.to_bech32()?);
+
+                client.shutdown().await?;
+            }
+            DmSubcommand::Receive { relay, secret_key } => {
+                let secret_key = SecretKey::from_bech32(&secret_key)?;
+                let keys = Keys::new(secret_key.clone());
+                let client = Client::new(&keys);
+
+                client.add_relay(relay).await?;
+                client.connect().await;
+
+                let p_tag = nostr::SingleLetterTag::from_char('p').unwrap();
+                let filter = Filter::new()
+                    .kind(Kind::EncryptedDirectMessage)
+                    .custom_tag(p_tag, vec![keys.public_key().to_string()]);
+
+                println!("Listening for DMs...");
+                let events = client.get_events_of(vec![filter], None).await?;
+                
+                for event in events {
+                    if let Ok(msg) = nip04::decrypt(&secret_key, &event.pubkey, &event.content) {
+                        println!("From: {}: {}", event.pubkey.to_bech32()?, msg);
+                    } else {
+                        eprintln!("Could not decrypt message from {}", event.pubkey.to_bech32()?);
+                    }
+                }
+
+                client.shutdown().await?;
+            }
+        },
+        Command::Nip05(nip05_command) => match nip05_command.subcommand {
+            Nip05Subcommand::Verify { identifier, pubkey } => {
+                let pubkey = PublicKey::from_bech32(&pubkey)?;
+                
+                let profile = nostr_sdk::nips::nip05::get_profile(&identifier, None).await?;
+                if profile.public_key == pubkey {
+                    println!("NIP-05 identifier {} is valid for public key {}", identifier, pubkey.to_bech32()?);
+                } else {
+                    eprintln!("NIP-05 verification failed: public key mismatch");
+                }
             }
         },
     }
