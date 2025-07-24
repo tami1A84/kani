@@ -951,6 +951,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kani"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "nostr",
+ "nostr-sdk",
+ "tokio",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1128,16 +1138,6 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "nostr-tool"
-version = "0.1.0"
-dependencies = [
- "clap",
- "nostr",
- "nostr-sdk",
- "tokio",
 ]
 
 [[package]]
