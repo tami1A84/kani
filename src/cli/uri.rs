@@ -8,6 +8,7 @@ pub struct UriCommand {
 }
 
 pub async fn handle_uri_command(command: UriCommand) -> Result<(), Box<dyn std::error::Error>> {
-    println!("URI parsing not yet implemented for this SDK version.");
+    let nip21 = Nip21::parse(&command.uri)?;
+    println!("{:#?}", nip21);
     Ok(())
 }

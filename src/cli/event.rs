@@ -2,6 +2,9 @@ use clap::{Parser, Subcommand};
 use nostr_sdk::prelude::*;
 use nostr::prelude::{FromBech32, ToBech32};
 use nostr::{Keys, SecretKey};
+use nostr::EventBuilder;
+use nostr_sdk::nips::nip09::EventDeletionRequest;
+use std::time::Duration;
 
 #[derive(Parser)]
 pub struct EventCommand {
@@ -43,8 +46,6 @@ enum EventSubcommand {
     },
 }
 
-use nostr::EventBuilder;
-
 pub async fn handle_event_command(command: EventCommand) -> Result<(), Box<dyn std::error::Error>> {
     match command.subcommand {
         EventSubcommand::CreateTextNote { relay, secret_key, content } => {
@@ -62,11 +63,46 @@ pub async fn handle_event_command(command: EventCommand) -> Result<(), Box<dyn s
 
             client.shutdown().await;
         }
-        EventSubcommand::Get { .. } => {
-            println!("Event Get not yet implemented for this SDK version.");
+        EventSubcommand::Get { relay, id } => {
+            let event_id = EventId::from_bech32(&id)
+                .or_else(|_| EventId::from_hex(&id))?;
+
+            let keys = Keys::generate();
+            let client = Client::new(keys);
+
+            let filter = Filter::new().id(event_id);
+            let timeout = Duration::from_secs(10);
+            let events = client.fetch_events_from(vec![&relay], filter, timeout).await?;
+
+            if let Some(event) = events.first() {
+                println!("{:#?}", event);
+            } else {
+                println!("Event not found.");
+            }
+
+            client.shutdown().await;
         }
-        EventSubcommand::Delete { .. } => {
-            println!("Event Delete not yet implemented for this SDK version.");
+        EventSubcommand::Delete { relay, secret_key, event_id } => {
+            let secret_key = SecretKey::from_bech32(&secret_key)?;
+            let keys = Keys::new(secret_key);
+            let client = Client::new(keys);
+            client.add_relay(&relay).await?;
+            client.connect().await;
+
+            let event_id_to_delete = EventId::from_bech32(&event_id)
+                .or_else(|_| EventId::from_hex(&event_id))?;
+
+            let request = EventDeletionRequest {
+                ids: vec![event_id_to_delete],
+                coordinates: vec![],
+                reason: None,
+            };
+            let builder = EventBuilder::delete(request);
+            let signed_event = client.sign_event_builder(builder).await?;
+            let deletion_event_id = client.send_event(&signed_event).await?;
+            println!("Deletion event sent with id: {}", deletion_event_id.to_bech32()?);
+
+            client.shutdown().await;
         }
     }
     Ok(())
