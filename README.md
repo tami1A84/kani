@@ -82,8 +82,6 @@ kani contact <COMMAND>
 ### `nip19`
 NIP-19 bech32エンコーディング
 
-**注: このコマンドは現在実装されていません。**
-
 **使用方法:**
 ```
 kani nip19 <COMMAND>
@@ -119,7 +117,7 @@ kani nip19 <COMMAND>
 
     **入力例:**
     ```
-    kani nip19 encode nevent <hex_event_id> --author-pubkey <hex_public_key> wss://relay.one
+    kani nip19 encode nevent <hex_event_id> --author-pubkey <hex_public_key> --kind 1 wss://relay.one
     ```
 - `decode`: bech32文字列をデコードします
 
