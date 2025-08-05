@@ -62,12 +62,42 @@ pub enum EncodeSubcommand {
 
 pub async fn handle_nip19_command(command: Nip19Command) -> Result<(), Box<dyn std::error::Error>> {
     match command.subcommand {
-        Nip19Subcommand::Decode { .. } => {
-            println!("NIP-19 Decode not yet implemented for this SDK version.");
+        Nip19Subcommand::Decode { bech32_string } => {
+            let decoded = Nip19::from_bech32(&bech32_string)?;
+            println!("{:#?}", decoded);
         }
-        Nip19Subcommand::Encode(..) => {
-            println!("NIP-19 Encode not yet implemented for this SDK version.");
-        }
+        Nip19Subcommand::Encode(encode_command) => match encode_command.subcommand {
+            EncodeSubcommand::Npub { hex_pubkey } => {
+                let pubkey = PublicKey::from_hex(&hex_pubkey)?;
+                println!("{}", pubkey.to_bech32()?);
+            }
+            EncodeSubcommand::Nsec { hex_seckey } => {
+                let seckey = SecretKey::from_hex(&hex_seckey)?;
+                println!("{}", seckey.to_bech32()?);
+            }
+            EncodeSubcommand::Note { hex_event_id } => {
+                let event_id = EventId::from_hex(&hex_event_id)?;
+                println!("{}", event_id.to_bech32()?);
+            }
+            EncodeSubcommand::Nprofile { hex_pubkey, relays } => {
+                let pubkey = PublicKey::from_hex(&hex_pubkey)?;
+                let relays_url = relays.into_iter().map(|r| RelayUrl::parse(&r)).collect::<Result<Vec<_>, _>>()?;
+                let profile = Nip19Profile::new(pubkey, relays_url);
+                println!("{}", profile.to_bech32()?);
+            }
+            EncodeSubcommand::Nevent { hex_event_id, author_pubkey, relays } => {
+                let event_id = EventId::from_hex(&hex_event_id)?;
+                let author = match author_pubkey {
+                    Some(hex) => Some(PublicKey::from_hex(&hex)?),
+                    None => None,
+                };
+                let relays_url = relays.into_iter().map(|r| RelayUrl::parse(&r)).collect::<Result<Vec<_>, _>>()?;
+                let mut event = Nip19Event::new(event_id);
+                event.author = author;
+                event.relays = relays_url;
+                println!("{}", event.to_bech32()?);
+            }
+        },
     }
     Ok(())
 }
