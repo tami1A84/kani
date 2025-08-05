@@ -12,7 +12,7 @@ mod tests {
 
     #[test]
     fn test_parse_generate_command() {
-        let cli = Cli::try_parse_from(&["nostr-tool", "key", "generate"]).unwrap();
+        let _cli = Cli::try_parse_from(&["nostr-tool", "key", "generate"]).unwrap();
         // We can't easily test the subcommand matching in the new structure without making fields public.
         // For now, just parsing is a good enough smoke test.
     }
