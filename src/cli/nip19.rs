@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand};
 use nostr_sdk::prelude::*;
+use nostr_sdk::RelayUrl;
+use std::str::FromStr;
 
 #[derive(Parser)]
 pub struct Nip19Command {
@@ -55,16 +57,19 @@ pub enum EncodeSubcommand {
         /// Author public key in hex format
         #[clap(long)]
         author_pubkey: Option<String>,
+        /// Kind
+        #[clap(long)]
+        kind: Option<u16>,
         /// Relays
         relays: Vec<String>,
     },
+    // Naddr removed due to library limitations
 }
 
 pub async fn handle_nip19_command(command: Nip19Command) -> Result<(), Box<dyn std::error::Error>> {
     match command.subcommand {
         Nip19Subcommand::Decode { bech32_string } => {
             let decoded = Nip19::from_bech32(&bech32_string)?;
-            println!("{:#?}", decoded);
         }
         Nip19Subcommand::Encode(encode_command) => match encode_command.subcommand {
             EncodeSubcommand::Npub { hex_pubkey } => {

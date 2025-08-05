@@ -60,6 +60,9 @@ kani nip05 <COMMAND>
 
 ### `nip19`
 bech32エンコーディング (NIP-19)
+=======
+NIP-19 bech32エンコーディング
+
 
 **使用方法:**
 ```
@@ -68,6 +71,39 @@ kani nip19 <COMMAND>
 
 **サブコマンド:**
 - `encode`: エンティティをbech32形式にエンコードします
+
+=======
+  - `npub`: 公開鍵をnpub形式にエンコードします
+
+    **入力例:**
+    ```
+    kani nip19 encode npub <hex_public_key>
+    ```
+  - `nsec`: 秘密鍵をnsec形式にエンコードします
+
+    **入力例:**
+    ```
+    kani nip19 encode nsec <hex_secret_key>
+    ```
+  - `note`: イベントIDをnote形式にエンコードします
+
+    **入力例:**
+    ```
+    kani nip19 encode note <hex_event_id>
+    ```
+  - `nprofile`: プロファイルをnprofile形式にエンコードします
+
+    **入力例:**
+    ```
+    kani nip19 encode nprofile <hex_public_key> wss://relay.one wss://relay.two
+    ```
+  - `nevent`: イベントをnevent形式にエンコードします
+
+    **入力例:**
+    ```
+    kani nip19 encode nevent <hex_event_id> --author-pubkey <hex_public_key> --kind 1 wss://relay.one
+    ```
+
 - `decode`: bech32文字列をデコードします
 
 ### `nip46`
