@@ -13,18 +13,9 @@ kani key <COMMAND>
 
 **サブコマンド:**
 - `generate`: 新しい鍵を生成します
-
-  **入力例:**
-  ```
-  kani key generate
-  ```
-
-- `from-mnemonic`: ニーモニックから鍵を導出します
-
-  **入力例:**
-  ```
-  kani key from-mnemonic "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
-  ```
+- `from-mnemonic`: ニーモニックから鍵を導出します (NIP-06)
+- `encrypt`: パスワードで秘密鍵を暗号化します (NIP-49)
+- `decrypt`: 暗号化された秘密鍵をパスワードで復号します (NIP-49)
 
 ### `event`
 イベント管理
@@ -36,25 +27,12 @@ kani event <COMMAND>
 
 **サブコマンド:**
 - `create-text-note`: テキスト投稿を作成します
-
-  **入力例:**
-  ```
-  kani event create-text-note --relay wss://relay.damus.io --secret-key nsec1... "Hello, Nostr!"
-  ```
-
+  - `--gift-wrap-recipient <npub>`: 指定した公開鍵の受信者でイベントをギフトラップします (NIP-59)
+- `create-dm`: ダイレクトメッセージを作成します (NIP-04)
 - `get`: IDでイベントを取得します
-
-  **入力例:**
-  ```
-  kani event get --relay wss://relay.damus.io note1...
-  ```
-
 - `delete`: IDでイベントを削除します
-
-  **入力例:**
-  ```
-  kani event delete --relay wss://relay.damus.io --secret-key nsec1... note1...
-  ```
+- `encrypt-payload`: ペイロードを暗号化します (NIP-44)
+- `decrypt-payload`: ペイロードを復号します (NIP-44)
 
 ### `contact`
 コンタクトリスト管理
@@ -65,22 +43,26 @@ kani contact <COMMAND>
 ```
 
 **サブコマンド:**
-- `set`: コンタクトリストを設定します
+- `set`: コンタクトリストを設定します (NIP-02)
+- `get`: コンタクトリストを取得します (NIP-02)
+- `set-relays`: リレーリストを設定します (NIP-65)
+- `get-relays`: リレーリストを取得します (NIP-65)
 
-  **入力例:**
-  ```
-  kani contact set --relay wss://relay.damus.io --secret-key nsec1... npub1... npub1...
-  ```
+### `nip05`
+DNSベースの識別子 (NIP-05)
 
-- `get`: コンタクトリストを取得します
-
-  **入力例:**
-  ```
-  kani contact get --relay wss://relay.damus.io npub1...
-  ```
+**使用方法:**
+```
+kani nip05 <COMMAND>
+```
+**サブコマンド:**
+- `verify`: NIP-05識別子を検証します
 
 ### `nip19`
+bech32エンコーディング (NIP-19)
+=======
 NIP-19 bech32エンコーディング
+
 
 **使用方法:**
 ```
@@ -89,6 +71,8 @@ kani nip19 <COMMAND>
 
 **サブコマンド:**
 - `encode`: エンティティをbech32形式にエンコードします
+
+=======
   - `npub`: 公開鍵をnpub形式にエンコードします
 
     **入力例:**
@@ -119,12 +103,33 @@ kani nip19 <COMMAND>
     ```
     kani nip19 encode nevent <hex_event_id> --author-pubkey <hex_public_key> --kind 1 wss://relay.one
     ```
+
 - `decode`: bech32文字列をデコードします
 
-  **入力例:**
-  ```
-  kani nip19 decode npub1...
-  ```
+### `nip46`
+Nostr Connect (NIP-46)
+
+**使用方法:**
+```
+kani nip46 <COMMAND>
+```
+
+**サブコマンド:**
+- `get-public-key`: リモート署名者から公開鍵を取得します
+- `sign-event`: リモート署名者でイベントに署名します
+
+### `nip47`
+Nostr Wallet Connect (NIP-47)
+
+**使用方法:**
+```
+kani nip47 <COMMAND>
+```
+
+**サブコマンド:**
+- `get-info`: ウォレットから情報を取得します
+- `get-balance`: ウォレットから残高を取得します
+- `pay-invoice`: ウォレットで請求書を支払います
 
 ### `uri`
 NIP-21 nostr URIのパース
@@ -132,12 +137,4 @@ NIP-21 nostr URIのパース
 **使用方法:**
 ```
 kani uri <URI>
-```
-
-**説明:**
-`nostr:`で始まるURIをパースして、その内容を表示します。
-
-**入力例:**
-```
-kani uri nostr:npub1...
 ```
