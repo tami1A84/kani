@@ -84,6 +84,27 @@ enum EventSubcommand {
         /// Encrypted content
         content: String,
     },
+    /// Create a long-form content note (NIP-23)
+    CreateLongFormPost {
+        /// Relay to send the event
+        #[clap(short, long)]
+        relay: String,
+        /// Secret key to sign the event
+        #[clap(short, long)]
+        secret_key: String,
+        /// Path to the markdown file
+        #[clap(short, long)]
+        file: String,
+        /// Title of the article
+        #[clap(long)]
+        title: Option<String>,
+        /// Summary of the article
+        #[clap(long)]
+        summary: Option<String>,
+        /// `d` identifier for the article
+        #[clap(long)]
+        d_identifier: Option<String>,
+    },
 }
 
 pub async fn handle_event_command(command: EventCommand) -> Result<(), Box<dyn std::error::Error>> {
@@ -182,6 +203,51 @@ pub async fn handle_event_command(command: EventCommand) -> Result<(), Box<dyn s
             let pk = PublicKey::from_bech32(&sender)?;
             let decrypted = nip44::decrypt(&sk, &pk, &content)?;
             println!("{}", decrypted);
+        }
+        EventSubcommand::CreateLongFormPost {
+            relay,
+            secret_key,
+            file,
+            title,
+            summary,
+            d_identifier,
+        } => {
+            let secret_key = SecretKey::from_bech32(&secret_key)?;
+            let keys = Keys::new(secret_key);
+            let client = Client::new(keys.clone());
+            client.add_relay(&relay).await?;
+            client.connect().await;
+
+            let content = std::fs::read_to_string(&file)?;
+
+            let d_tag_value = d_identifier.unwrap_or_else(|| {
+                std::path::Path::new(&file)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("default-d-identifier")
+                    .to_string()
+            });
+
+            let mut tags: Vec<Tag> = vec![Tag::identifier(d_tag_value)];
+
+            if let Some(title) = title {
+                tags.push(Tag::parse(["title", &title.as_str()])?);
+            }
+            if let Some(summary) = summary {
+                tags.push(Tag::parse(["summary", &summary.as_str()])?);
+            }
+
+            let publication_timestamp = Timestamp::now();
+            let timestamp_str = publication_timestamp.as_u64().to_string();
+            tags.push(Tag::parse(["published_at", &timestamp_str])?);
+
+
+            let builder = EventBuilder::new(Kind::Custom(30023), &content).tags(tags);
+            let event = client.sign_event_builder(builder).await?;
+            let event_id = client.send_event(&event).await?;
+            println!("Long-form post sent with id: {}", event_id.to_bech32()?);
+
+            client.shutdown().await;
         }
     }
     Ok(())
