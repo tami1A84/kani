@@ -5,13 +5,13 @@ use nostr::bip39::Mnemonic;
 use nostr::nips::nip49::EncryptedSecretKey;
 use nostr::{Keys, SecretKey};
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub struct KeyCommand {
     #[command(subcommand)]
     subcommand: KeySubcommand,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum KeySubcommand {
     /// Generate new keys
     Generate,

@@ -2,13 +2,13 @@ use clap::{Parser, Subcommand};
 use nostr_sdk::prelude::*;
 use nostr_sdk::RelayUrl;
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub struct Nip19Command {
     #[command(subcommand)]
     subcommand: Nip19Subcommand,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub enum Nip19Subcommand {
     /// Encode entities to bech32 format
     Encode(EncodeCommand),
@@ -19,13 +19,13 @@ pub enum Nip19Subcommand {
     },
 }
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub struct EncodeCommand {
     #[command(subcommand)]
     subcommand: EncodeSubcommand,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub enum EncodeSubcommand {
     /// Encode a public key to npub format
     Npub {

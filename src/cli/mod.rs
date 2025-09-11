@@ -20,6 +20,17 @@ use self::{
     nip47::Nip47Command,
 };
 
+#[derive(Parser, Clone)]
+pub struct CommonOptions {
+    /// Secret key to use for signing events
+    #[clap(long)]
+    pub secret_key: Option<String>,
+
+    /// Relay to connect to
+    #[clap(long, short, action = clap::ArgAction::Append)]
+    pub relay: Vec<String>,
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
@@ -27,7 +38,7 @@ pub struct Cli {
     command: Command,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum Command {
     /// Keys management
     Key(KeyCommand),
