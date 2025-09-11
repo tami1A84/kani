@@ -1,4 +1,4 @@
-# kani
+# kani-nostr-cli
 rust-nostr CLIツール
 
 ## コマンド
