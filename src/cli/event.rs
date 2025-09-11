@@ -6,6 +6,11 @@ use nostr::prelude::{FromBech32, ToBech32};
 use nostr::{EventBuilder, Keys, SecretKey};
 use nostr_sdk::nips::nip09::EventDeletionRequest;
 use nostr_sdk::prelude::*;
+use serde_json;
+use std::env;
+use std::fs::File;
+use std::io::Write;
+use std::process::Command as StdCommand;
 use std::time::Duration;
 
 #[derive(Parser, Clone)]
@@ -75,6 +80,8 @@ enum EventSubcommand {
         #[clap(long)]
         d_identifier: Option<String>,
     },
+    /// Edit profile metadata (NIP-01)
+    EditProfile,
 }
 
 pub async fn handle_event_command(command: EventCommand) -> Result<(), Box<dyn std::error::Error>> {
@@ -269,6 +276,73 @@ pub async fn handle_event_command(command: EventCommand) -> Result<(), Box<dyn s
                 event_id.to_bech32()?
             );
 
+            client.shutdown().await;
+        }
+        EventSubcommand::EditProfile => {
+            if relays.is_empty() {
+                return Err("No relays provided in args or config".into());
+            }
+            let secret_key_str = command.common.secret_key.or(config.secret_key).ok_or("Secret key not provided")?;
+            let secret_key = SecretKey::from_bech32(&secret_key_str)?;
+            let keys = Keys::new(secret_key);
+            let client = Client::new(keys.clone());
+            for relay in &relays {
+                client.add_relay(relay).await?;
+            }
+            client.connect().await;
+
+            let filter = Filter::new()
+                .author(keys.public_key())
+                .kind(Kind::Metadata)
+                .limit(1);
+            let timeout = Duration::from_secs(10);
+            let relay_urls: Vec<&str> = relays.iter().map(|s| s.as_str()).collect();
+            let events = client
+                .fetch_events_from(relay_urls, filter, timeout)
+                .await?;
+
+            let mut use_template = true;
+            let mut current_metadata = Metadata::new();
+
+            if let Some(event) = events.first() {
+                if !event.content.is_empty() && event.content != "{}" {
+                    current_metadata = Metadata::from_json(&event.content)?;
+                    use_template = false;
+                }
+            }
+
+            if use_template {
+                current_metadata.name = Some("new_user".to_string());
+                current_metadata.display_name = Some("New User".to_string());
+                current_metadata.about = Some("A short description of the user.".to_string());
+                current_metadata.picture = Some(Url::parse("https://example.com/picture.jpg").unwrap().to_string());
+                current_metadata.banner = Some(Url::parse("https://example.com/banner.jpg").unwrap().to_string());
+                current_metadata.website = Some(Url::parse("https://example.com").unwrap().to_string());
+                current_metadata.lud16 = Some("lightning@address.com".to_string());
+                current_metadata.nip05 = Some("user@example.com".to_string());
+            }
+
+            let mut temp_file = File::create("profile.json")?;
+            let pretty_json = serde_json::to_string_pretty(&current_metadata)?;
+            temp_file.write_all(pretty_json.as_bytes())?;
+
+            let editor = env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
+            let status = StdCommand::new(editor).arg("profile.json").status()?;
+
+            if !status.success() {
+                return Err("Editor command failed".into());
+            }
+
+            let updated_json = std::fs::read_to_string("profile.json")?;
+            let updated_metadata: Metadata = serde_json::from_str(&updated_json)?;
+
+            let builder = EventBuilder::metadata(&updated_metadata);
+            let event = client.sign_event_builder(builder).await?;
+            let event_id = client.send_event(&event).await?;
+
+            println!("Profile updated with event id: {}", event_id.to_bech32()?);
+
+            std::fs::remove_file("profile.json")?;
             client.shutdown().await;
         }
     }
