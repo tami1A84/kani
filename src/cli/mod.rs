@@ -8,6 +8,7 @@ pub mod uri;
 pub mod nip05;
 pub mod nip46;
 pub mod nip47;
+pub mod config;
 
 use self::{
     contact::ContactCommand,
@@ -18,6 +19,7 @@ use self::{
     nip05::Nip05Command,
     nip46::Nip46Command,
     nip47::Nip47Command,
+    config::ConfigCommand,
 };
 
 #[derive(Parser, Clone)]
@@ -56,6 +58,8 @@ enum Command {
     Nip46(Nip46Command),
     /// NIP-47 Nostr Wallet Connect
     Nip47(Nip47Command),
+    /// Config management
+    Config(ConfigCommand),
 }
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -70,6 +74,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Command::Nip05(nip05_command) => nip05::handle_nip05_command(nip05_command).await?,
         Command::Nip46(nip46_command) => nip46::handle_nip46_command(nip46_command).await?,
         Command::Nip47(nip47_command) => nip47::handle_nip47_command(nip47_command).await?,
+        Command::Config(config_command) => config::handle_config_command(config_command).await?,
     }
 
     Ok(())
