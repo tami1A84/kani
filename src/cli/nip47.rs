@@ -3,14 +3,14 @@ use nostr_sdk::prelude::*;
 use nostr::nips::nip47::{Request, NostrWalletConnectURI, Response, PayInvoiceRequest};
 use tokio::time::{timeout, Duration};
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub struct Nip47Command {
     /// Nostr Wallet Connect (NIP-47)
     #[command(subcommand)]
     subcommand: Nip47Subcommand,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub enum Nip47Subcommand {
     /// Get info from a wallet
     GetInfo {

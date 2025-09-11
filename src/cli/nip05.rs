@@ -2,14 +2,14 @@ use clap::Parser;
 use nostr_sdk::prelude::*;
 use nostr::nips::nip05::{Nip05Address, verify_from_raw_json};
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub struct Nip05Command {
     /// Verify a NIP-05 identifier
     #[command(subcommand)]
     subcommand: Nip05Subcommand,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub enum Nip05Subcommand {
     Verify {
         /// NIP-05 identifier (user@example.com)

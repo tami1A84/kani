@@ -1,7 +1,7 @@
 use clap::Parser;
 use nostr_sdk::prelude::*;
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub struct UriCommand {
     /// nostr: URI to parse
     uri: String,
