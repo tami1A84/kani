@@ -88,6 +88,12 @@ kani event <COMMAND>
   ```
   kani event decrypt-payload --secret-key <nsec_secret_key> --sender <npub_sender_key> <encrypted_payload>
   ```
+- `create-long-form-post`: 長文コンテンツ投稿を作成します (NIP-23)
+
+  **入力例:**
+  ```
+  kani event create-long-form-post --relay wss://relay.damus.io --secret-key <nsec_secret_key> --file path/to/article.md --title "My Article" --summary "A summary of my article."
+  ```
 
 ### `contact`
 コンタクトリスト管理
