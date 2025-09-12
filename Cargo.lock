@@ -1100,7 +1100,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kani"
+name = "kani-nostr-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",

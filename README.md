@@ -1,8 +1,9 @@
-# kani
+# kani-nostr-cli
 
+[![Crates.io](https://img.shields.io/crates/v/kani-nostr-cli.svg)](https://crates.io/crates/kani-nostr-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-`kani` は、Nostrプロトコルのための多機能コマンドラインインターフェース（CLI）ツールです。鍵の生成からイベントの送受信、Nostr Connectまで、さまざまなNIPをサポートし、Nostrエコシステムでの開発と対話を容易にします。
+`kani-nostr-cli` は、Nostrプロトコルのための多機能コマンドラインインターフェース（CLI）ツールです。鍵の生成からイベントの送受信、Nostr Connectまで、さまざまなNIPをサポートし、Nostrエコシステムでの開発と対話を容易にします。
 
 ## ✨ 特徴 (Features)
 
@@ -18,23 +19,18 @@
 
 ## 📦 インストール (Installation)
 
-現在、`kani` は crates.io に公開されていません。ソースコードからビルド・インストールしてください。
+`kani-nostr-cli` は crates.io に公開されています。`cargo` を使ってインストールできます。
 
 ```bash
-# リポジトリをクローン (URLは適宜変更してください)
-git clone https://github.com/tami1A84/kani-nostr-cli.git
-cd kani-nostr-cli
-
-# ビルド & インストール
-cargo install --path .
+cargo install kani-nostr-cli
 ```
 
 ## 🚀 使い方 (Usage)
 
-`kani` はサブコマンドベースで動作します。
+`kani-nostr-cli` はサブコマンドベースで動作します。
 
 ```
-kani <COMMAND>
+kani-nostr-cli <COMMAND>
 ```
 
 ### 主要コマンド
@@ -42,7 +38,7 @@ kani <COMMAND>
 <details>
 <summary>🔑 <strong>key</strong> - 鍵管理</summary>
 
-**使用方法:** `kani key <SUBCOMMAND>`
+**使用方法:** `kani-nostr-cli key <SUBCOMMAND>`
 
 | サブコマンド      | 説明                                        |
 | ----------------- | ------------------------------------------- |
@@ -53,14 +49,14 @@ kani <COMMAND>
 
 **入力例 (`generate`):**
 ```bash
-kani key generate
+kani-nostr-cli key generate
 ```
 </details>
 
 <details>
 <summary>⚡️ <strong>event</strong> - イベント管理</summary>
 
-**使用方法:** `kani event <SUBCOMMAND>`
+**使用方法:** `kani-nostr-cli event <SUBCOMMAND>`
 
 | サブコマンド             | 説明                                                   |
 | ------------------------ | ------------------------------------------------------ |
@@ -73,14 +69,14 @@ kani key generate
 
 **入力例 (`create-text-note`):**
 ```bash
-kani event create-text-note --relay wss://relay.damus.io --secret-key <nsec_secret_key> "Hello, Nostr!"
+kani-nostr-cli event create-text-note --relay wss://relay.damus.io --secret-key <nsec_secret_key> "Hello, Nostr!"
 ```
 </details>
 
 <details>
 <summary>👥 <strong>contact</strong> - コンタクトリスト管理</summary>
 
-**使用方法:** `kani contact <SUBCOMMAND>`
+**使用方法:** `kani-nostr-cli contact <SUBCOMMAND>`
 
 | サブコマンド     | 説明                                        |
 | ---------------- | ------------------------------------------- |
@@ -91,14 +87,14 @@ kani event create-text-note --relay wss://relay.damus.io --secret-key <nsec_secr
 
 **入力例 (`set`):**
 ```bash
-kani contact set --relay wss://relay.damus.io --secret-key <nsec_secret_key> <npub_key_1> <npub_key_2>
+kani-nostr-cli contact set --relay wss://relay.damus.io --secret-key <nsec_secret_key> <npub_key_1> <npub_key_2>
 ```
 </details>
 
 <details>
 <summary>🌐 <strong>nip05</strong> - DNSベースの識別子</summary>
 
-**使用方法:** `kani nip05 <SUBCOMMAND>`
+**使用方法:** `kani-nostr-cli nip05 <SUBCOMMAND>`
 
 | サブコマンド | 説明                             |
 | ------------ | -------------------------------- |
@@ -106,14 +102,14 @@ kani contact set --relay wss://relay.damus.io --secret-key <nsec_secret_key> <np
 
 **入力例 (`verify`):**
 ```bash
-kani nip05 verify --nip05 user@example.com --pubkey <npub_key>
+kani-nostr-cli nip05 verify --nip05 user@example.com --pubkey <npub_key>
 ```
 </details>
 
 <details>
 <summary>🔗 <strong>nip19</strong> - bech32エンコーディング</summary>
 
-**使用方法:** `kani nip19 <SUBCOMMAND>`
+**使用方法:** `kani-nostr-cli nip19 <SUBCOMMAND>`
 
 | サブコマンド | 説明                                    |
 | ------------ | --------------------------------------- |
@@ -122,14 +118,14 @@ kani nip05 verify --nip05 user@example.com --pubkey <npub_key>
 
 **入力例 (`encode npub`):**
 ```bash
-kani nip19 encode npub <hex_public_key>
+kani-nostr-cli nip19 encode npub <hex_public_key>
 ```
 </details>
 
 <details>
 <summary>🔌 <strong>nip46</strong> - Nostr Connect</summary>
 
-**使用方法:** `kani nip46 <SUBCOMMAND>`
+**使用方法:** `kani-nostr-cli nip46 <SUBCOMMAND>`
 
 | サブコマンド       | 説明                                        |
 | ------------------ | ------------------------------------------- |
@@ -138,14 +134,14 @@ kani nip19 encode npub <hex_public_key>
 
 **入力例 (`get-public-key`):**
 ```bash
-kani nip46 get-public-key "nostrconnect://<bunker_hex_pubkey>?relay=<relay_url>" --secret-key <local_nsec_key>
+kani-nostr-cli nip46 get-public-key "nostrconnect://<bunker_hex_pubkey>?relay=<relay_url>" --secret-key <local_nsec_key>
 ```
 </details>
 
 <details>
 <summary>💰 <strong>nip47</strong> - Nostr Wallet Connect</summary>
 
-**使用方法:** `kani nip47 <SUBCOMMAND>`
+**使用方法:** `kani-nostr-cli nip47 <SUBCOMMAND>`
 
 | サブコマンド    | 説明                             |
 | --------------- | -------------------------------- |
@@ -155,18 +151,18 @@ kani nip46 get-public-key "nostrconnect://<bunker_hex_pubkey>?relay=<relay_url>"
 
 **入力例 (`get-info`):**
 ```bash
-kani nip47 get-info "nostr+walletconnect://<wallet_hex_pubkey>?relay=<relay_url>&secret=<hex_secret>"
+kani-nostr-cli nip47 get-info "nostr+walletconnect://<wallet_hex_pubkey>?relay=<relay_url>&secret=<hex_secret>"
 ```
 </details>
 
 <details>
 <summary>🏷️ <strong>uri</strong> - NIP-21 URIのパース</summary>
 
-**使用方法:** `kani uri <URI>`
+**使用方法:** `kani-nostr-cli uri <URI>`
 
 **入力例:**
 ```bash
-kani uri nostr:npub1...
+kani-nostr-cli uri nostr:npub1...
 ```
 </details>
 
