@@ -5,6 +5,7 @@ pub mod config;
 pub mod contact;
 pub mod event;
 pub mod key;
+pub mod relay;
 pub mod nip05;
 pub mod nip19;
 pub mod nip46;
@@ -14,7 +15,7 @@ pub mod uri;
 use self::{
     config::ConfigCommand, contact::ContactCommand, event::EventCommand, key::KeyCommand,
     nip05::Nip05Command, nip19::Nip19Command, nip46::Nip46Command, nip47::Nip47Command,
-    uri::UriCommand,
+    relay::RelayCommand, uri::UriCommand,
 };
 
 #[derive(Parser, Clone)]
@@ -43,6 +44,8 @@ enum Command {
     Event(EventCommand),
     /// Contact list management
     Contact(ContactCommand),
+    /// Relay list management
+    Relay(RelayCommand),
     /// NIP-19 bech32 encoding/decoding
     Nip19(Nip19Command),
     /// NIP-21 nostr URI parsing
@@ -68,6 +71,7 @@ pub async fn run() -> Result<(), Error> {
         Command::Contact(contact_command) => {
             contact::handle_contact_command(contact_command).await?
         }
+        Command::Relay(relay_command) => relay::handle_relay_command(relay_command).await?,
         Command::Nip19(nip19_command) => nip19::handle_nip19_command(nip19_command).await?,
         Command::Uri(uri_command) => uri::handle_uri_command(uri_command).await?,
         Command::Nip05(nip05_command) => nip05::handle_nip05_command(nip05_command).await?,
