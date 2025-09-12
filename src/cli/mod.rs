@@ -5,11 +5,11 @@ pub mod config;
 pub mod contact;
 pub mod event;
 pub mod key;
-pub mod relay;
 pub mod nip05;
 pub mod nip19;
 pub mod nip46;
 pub mod nip47;
+pub mod relay;
 pub mod uri;
 
 use self::{

@@ -1,5 +1,5 @@
-use crate::cli::common::{connect_client, get_relays};
 use crate::cli::CommonOptions;
+use crate::cli::common::{connect_client, get_relays};
 use crate::config::load_config;
 use crate::error::Error;
 use clap::{Parser, Subcommand};

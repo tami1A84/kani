@@ -2,18 +2,17 @@ use crate::cli::CommonOptions;
 use crate::cli::common::{connect_client, get_relays};
 use crate::config::load_config;
 use clap::{Parser, Subcommand};
+use colored::*;
+use comfy_table::{Cell, CellAlignment, Table, presets::UTF8_FULL};
+use dialoguer::{Confirm, Input, theme::ColorfulTheme};
+use indicatif::{ProgressBar, ProgressStyle};
 use nostr::nips::nip44;
 use nostr::prelude::{FromBech32, ToBech32};
 use nostr::{EventBuilder, Keys, SecretKey};
-use nostr_sdk::Url;
 use nostr_sdk::nips::nip09::EventDeletionRequest;
 use nostr_sdk::prelude::*;
 use serde_json;
-use std::env;
-use std::io::Write;
-use std::process::Command as StdCommand;
 use std::time::Duration;
-use tempfile::NamedTempFile;
 
 #[derive(Parser, Clone)]
 pub struct EventCommand {
@@ -186,6 +185,15 @@ async fn edit_profile(secret_key_str: String, relays: Vec<String>) -> Result<(),
     let keys = Keys::new(SecretKey::from_bech32(&secret_key_str)?);
     let client = connect_client(keys.clone(), relays.clone()).await?;
 
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.blue} Fetching existing profile...")
+            .unwrap()
+            .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
+    );
+    spinner.enable_steady_tick(Duration::from_millis(100));
+
     let filter = Filter::new()
         .author(keys.public_key())
         .kind(Kind::Metadata)
@@ -195,50 +203,112 @@ async fn edit_profile(secret_key_str: String, relays: Vec<String>) -> Result<(),
     let events = client
         .fetch_events_from(relay_urls, filter, timeout)
         .await?;
+    spinner.finish_and_clear();
 
-    let mut use_template = true;
-    let mut current_metadata = Metadata::new();
+    let mut current_metadata = if let Some(event) = events.first() {
+        Metadata::from_json(&event.content)?
+    } else {
+        println!("No existing profile found. Creating a new one.");
+        Metadata::new()
+    };
 
-    if let Some(event) = events.first() {
-        if !event.content.is_empty() && event.content != "{}" {
-            current_metadata = Metadata::from_json(&event.content)?;
-            use_template = false;
-        }
-    }
+    let theme = ColorfulTheme::default();
 
-    if use_template {
-        current_metadata.name = Some("new_user".to_string());
-        current_metadata.display_name = Some("New User".to_string());
-        current_metadata.about = Some("A short description of the user.".to_string());
-        current_metadata.picture = Some(Url::parse("https://example.com/picture.jpg")?.to_string());
-        current_metadata.banner = Some(Url::parse("https://example.com/banner.jpg")?.to_string());
-        current_metadata.website = Some(Url::parse("https://example.com")?.to_string());
-        current_metadata.lud16 = Some("lightning@address.com".to_string());
-        current_metadata.nip05 = Some("user@example.com".to_string());
-    }
-
-    let mut temp_file = NamedTempFile::new()?;
-    let pretty_json = serde_json::to_string_pretty(&current_metadata)?;
-    temp_file.write_all(pretty_json.as_bytes())?;
-
-    let editor = env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
-    let status = StdCommand::new(editor).arg(temp_file.path()).status()?;
-
-    if !status.success() {
-        return Err(Error::Message("Editor command failed".to_string()));
-    }
-
-    let updated_json = std::fs::read_to_string(temp_file.path())?;
-    let updated_metadata: Metadata = serde_json::from_str(&updated_json)?;
-
-    let builder = EventBuilder::metadata(&updated_metadata);
-    let event = client.sign_event_builder(builder).await?;
-    let event_id = client.send_event(&event).await?;
-
-    println!(
-        "Profile updated with event id: {}",
-        event_id.to_bech32().unwrap()
+    current_metadata.name = Some(
+        Input::with_theme(&theme)
+            .with_prompt("Name")
+            .with_initial_text(current_metadata.name.unwrap_or_default())
+            .interact_text()?,
     );
+
+    current_metadata.display_name = Some(
+        Input::with_theme(&theme)
+            .with_prompt("Display Name")
+            .with_initial_text(current_metadata.display_name.unwrap_or_default())
+            .interact_text()?,
+    );
+
+    current_metadata.about = Some(
+        Input::with_theme(&theme)
+            .with_prompt("About")
+            .with_initial_text(current_metadata.about.unwrap_or_default())
+            .interact_text()?,
+    );
+
+    current_metadata.picture = Some(
+        Input::with_theme(&theme)
+            .with_prompt("Picture URL")
+            .with_initial_text(current_metadata.picture.unwrap_or_default())
+            .interact_text()?,
+    );
+
+    current_metadata.banner = Some(
+        Input::with_theme(&theme)
+            .with_prompt("Banner URL")
+            .with_initial_text(current_metadata.banner.unwrap_or_default())
+            .interact_text()?,
+    );
+
+    current_metadata.website = Some(
+        Input::with_theme(&theme)
+            .with_prompt("Website URL")
+            .with_initial_text(current_metadata.website.unwrap_or_default())
+            .interact_text()?,
+    );
+
+    current_metadata.lud16 = Some(
+        Input::with_theme(&theme)
+            .with_prompt("LUD-16 (Lightning Address)")
+            .with_initial_text(current_metadata.lud16.unwrap_or_default())
+            .interact_text()?,
+    );
+
+    current_metadata.nip05 = Some(
+        Input::with_theme(&theme)
+            .with_prompt("NIP-05 Identifier")
+            .with_initial_text(current_metadata.nip05.unwrap_or_default())
+            .interact_text()?,
+    );
+
+    // Clean up empty strings to None
+    current_metadata.name = current_metadata.name.filter(|s| !s.is_empty());
+    current_metadata.display_name = current_metadata.display_name.filter(|s| !s.is_empty());
+    current_metadata.about = current_metadata.about.filter(|s| !s.is_empty());
+    current_metadata.picture = current_metadata.picture.filter(|s| !s.is_empty());
+    current_metadata.banner = current_metadata.banner.filter(|s| !s.is_empty());
+    current_metadata.website = current_metadata.website.filter(|s| !s.is_empty());
+    current_metadata.lud16 = current_metadata.lud16.filter(|s| !s.is_empty());
+    current_metadata.nip05 = current_metadata.nip05.filter(|s| !s.is_empty());
+
+    let pretty_json = serde_json::to_string_pretty(&current_metadata)?;
+    println!("\nNew profile metadata:\n{}", pretty_json.cyan());
+
+    if Confirm::with_theme(&theme)
+        .with_prompt("Do you want to publish this profile?")
+        .default(true)
+        .interact()?
+    {
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.blue} Publishing profile...")
+                .unwrap()
+                .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
+        );
+        spinner.enable_steady_tick(Duration::from_millis(100));
+
+        let builder = EventBuilder::metadata(&current_metadata);
+        let event = client.sign_event_builder(builder).await?;
+        let event_id = client.send_event(&event).await?;
+
+        spinner.finish_with_message("Published.");
+        println!(
+            "Profile updated with event id: {}",
+            event_id.to_bech32().unwrap().green()
+        );
+    } else {
+        println!("Profile update cancelled.");
+    }
 
     client.shutdown().await;
     Ok(())
@@ -340,14 +410,66 @@ async fn get_event(id: String, relays: Vec<String>) -> Result<(), Error> {
 
     let filter = Filter::new().id(event_id);
     let timeout = Duration::from_secs(10);
+
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.blue} Fetching event...")
+            .unwrap()
+            .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
+    );
+    spinner.enable_steady_tick(Duration::from_millis(100));
+
     let events = client
         .fetch_events_from(relay_urls, filter, timeout)
         .await?;
 
+    spinner.finish_with_message("Done.");
+
     if let Some(event) = events.first() {
-        println!("{event:#?}");
+        let mut table = Table::new();
+        table
+            .load_preset(UTF8_FULL)
+            .set_header(vec!["Field", "Value"]);
+
+        table.add_row(vec![
+            Cell::new("Event ID".blue().bold()).set_alignment(CellAlignment::Center),
+            Cell::new(event.id.to_bech32().unwrap()),
+        ]);
+        table.add_row(vec![
+            Cell::new("Public Key".blue().bold()).set_alignment(CellAlignment::Center),
+            Cell::new(event.pubkey.to_bech32().unwrap()),
+        ]);
+        table.add_row(vec![
+            Cell::new("Kind".blue().bold()).set_alignment(CellAlignment::Center),
+            Cell::new(event.kind.to_string()),
+        ]);
+        table.add_row(vec![
+            Cell::new("Created At".blue().bold()).set_alignment(CellAlignment::Center),
+            Cell::new(event.created_at.to_string()),
+        ]);
+        table.add_row(vec![
+            Cell::new("Content".blue().bold()).set_alignment(CellAlignment::Center),
+            Cell::new(&event.content),
+        ]);
+        let tags_str = event
+            .tags
+            .iter()
+            .map(|t| format!("{:?}", t))
+            .collect::<Vec<String>>()
+            .join("\n");
+        table.add_row(vec![
+            Cell::new("Tags".blue().bold()).set_alignment(CellAlignment::Center),
+            Cell::new(tags_str),
+        ]);
+        table.add_row(vec![
+            Cell::new("Signature".blue().bold()).set_alignment(CellAlignment::Center),
+            Cell::new(event.sig.to_string()),
+        ]);
+
+        println!("{table}");
     } else {
-        println!("Event not found.");
+        println!("{}", "Event not found.".red());
     }
 
     Ok(())

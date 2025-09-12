@@ -76,4 +76,7 @@ pub enum Error {
 
     #[error("{0}")]
     Message(String),
+
+    #[error("Dialoguer error: {0}")]
+    Dialoguer(#[from] dialoguer::Error),
 }
