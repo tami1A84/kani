@@ -127,6 +127,13 @@ pub async fn edit_relays(secret_key_str: String, relays: Vec<String>) -> Result<
                 let new_url: String = Input::with_theme(&theme)
                     .with_prompt("リレーURL")
                     .with_initial_text(url_to_edit)
+                    .validate_with(|input: &String| -> Result<(), &str> {
+                        if input.starts_with("wss://") {
+                            Ok(())
+                        } else {
+                            Err("リレーURLはwss://で始まる必要があります。")
+                        }
+                    })
                     .interact_text()?;
 
                 let marker_options = &[
@@ -166,6 +173,13 @@ pub async fn edit_relays(secret_key_str: String, relays: Vec<String>) -> Result<
                 // Add new relay
                 let url: String = Input::with_theme(&theme)
                     .with_prompt("新しいリレーURL")
+                    .validate_with(|input: &String| -> Result<(), &str> {
+                        if input.starts_with("wss://") {
+                            Ok(())
+                        } else {
+                            Err("リレーURLはwss://で始まる必要があります。")
+                        }
+                    })
                     .interact_text()?;
                 if url.is_empty() {
                     continue;

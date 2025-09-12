@@ -239,6 +239,13 @@ pub async fn edit_profile(secret_key_str: String, relays: Vec<String>) -> Result
         Input::with_theme(&theme)
             .with_prompt("Picture URL")
             .with_initial_text(current_metadata.picture.unwrap_or_default())
+            .validate_with(|input: &String| -> Result<(), &str> {
+                if input.is_empty() || input.starts_with("http://") || input.starts_with("https://") {
+                    Ok(())
+                } else {
+                    Err("URLはhttp://またはhttps://で始まる必要があります。")
+                }
+            })
             .interact_text()?,
     );
 
@@ -246,6 +253,13 @@ pub async fn edit_profile(secret_key_str: String, relays: Vec<String>) -> Result
         Input::with_theme(&theme)
             .with_prompt("Banner URL")
             .with_initial_text(current_metadata.banner.unwrap_or_default())
+            .validate_with(|input: &String| -> Result<(), &str> {
+                if input.is_empty() || input.starts_with("http://") || input.starts_with("https://") {
+                    Ok(())
+                } else {
+                    Err("URLはhttp://またはhttps://で始まる必要があります。")
+                }
+            })
             .interact_text()?,
     );
 
@@ -253,6 +267,13 @@ pub async fn edit_profile(secret_key_str: String, relays: Vec<String>) -> Result
         Input::with_theme(&theme)
             .with_prompt("Website URL")
             .with_initial_text(current_metadata.website.unwrap_or_default())
+            .validate_with(|input: &String| -> Result<(), &str> {
+                if input.is_empty() || input.starts_with("http://") || input.starts_with("https://") {
+                    Ok(())
+                } else {
+                    Err("URLはhttp://またはhttps://で始まる必要があります。")
+                }
+            })
             .interact_text()?,
     );
 
