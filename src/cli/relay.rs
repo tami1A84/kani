@@ -1,16 +1,13 @@
-use crate::cli::CommonOptions;
 use crate::cli::common::{connect_client, get_relays};
+use crate::cli::CommonOptions;
 use crate::config::load_config;
 use crate::error::Error;
 use clap::{Parser, Subcommand};
+use dialoguer::{theme::ColorfulTheme, Confirm, Input, MultiSelect, Select};
 use nostr::prelude::FromBech32;
 use nostr::{Keys, SecretKey};
 use nostr_sdk::prelude::*;
 use std::collections::HashMap;
-use std::env;
-use std::fs;
-use std::io::Write;
-use std::process::Command as StdCommand;
 use std::time::Duration;
 
 #[derive(Parser, Clone)]
@@ -98,83 +95,137 @@ async fn edit_relays(secret_key_str: String, relays: Vec<String>) -> Result<(), 
         }
     }
 
-    let mut current_relays_str = String::new();
-    for (url, markers) in relay_markers {
-        current_relays_str.push_str(&url);
-        for marker in markers {
-            current_relays_str.push_str(&format!(" #{marker}"));
+    let theme = ColorfulTheme::default();
+
+    loop {
+        let mut items: Vec<String> = relay_markers
+            .keys()
+            .map(|k| {
+                let markers = relay_markers.get(k).unwrap();
+                if markers.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{} (#{})", k, markers.join(", #"))
+                }
+            })
+            .collect();
+        items.sort();
+
+        let selection = Select::with_theme(&theme)
+            .with_prompt("リレーリストの編集")
+            .items(&items)
+            .item("リレーの追加")
+            .item("リレーの削除")
+            .item("完了")
+            .default(0)
+            .interact()?;
+
+        match selection {
+            i if i < items.len() => {
+                // Edit existing relay
+                let url_to_edit = &items[i].split(' ').next().unwrap().to_string();
+                let new_url: String = Input::with_theme(&theme)
+                    .with_prompt("リレーURL")
+                    .with_initial_text(url_to_edit)
+                    .interact_text()?;
+
+                let marker_options = &[
+                    "read",
+                    "write",
+                    "Inbox",
+                    "Outbox",
+                    "Discover",
+                    "Spam Safe",
+                    "Direct Message",
+                    "Global feed",
+                    "Search",
+                ];
+                let existing_markers = relay_markers.get(url_to_edit).unwrap();
+                let initial_selection: Vec<bool> = marker_options
+                    .iter()
+                    .map(|&option| existing_markers.iter().any(|m| m == option))
+                    .collect();
+
+                let new_markers_indices = MultiSelect::with_theme(&theme)
+                    .with_prompt("マーカーの選択 (read/write)")
+                    .items(marker_options)
+                    .defaults(&initial_selection)
+                    .interact()?;
+
+                let new_markers = new_markers_indices
+                    .iter()
+                    .map(|&i| marker_options[i].to_string())
+                    .collect();
+
+                if &new_url != url_to_edit {
+                    relay_markers.remove(url_to_edit);
+                }
+                relay_markers.insert(new_url, new_markers);
+            }
+            i if i == items.len() => {
+                // Add new relay
+                let url: String = Input::with_theme(&theme)
+                    .with_prompt("新しいリレーURL")
+                    .interact_text()?;
+                if url.is_empty() {
+                    continue;
+                }
+
+                let marker_options = &[
+                    "read",
+                    "write",
+                    "Inbox",
+                    "Outbox",
+                    "Discover",
+                    "Spam Safe",
+                    "Direct Message",
+                    "Global feed",
+                    "Search",
+                ];
+                let markers_indices = MultiSelect::with_theme(&theme)
+                    .with_prompt("マーカーの選択 (read/write)")
+                    .items(marker_options)
+                    .interact()?;
+                let markers = markers_indices
+                    .iter()
+                    .map(|&i| marker_options[i].to_string())
+                    .collect();
+                relay_markers.insert(url, markers);
+            }
+            i if i == items.len() + 1 => {
+                // Delete relay
+                if items.is_empty() {
+                    println!("削除するリレーがありません。");
+                    continue;
+                }
+                let to_delete_idx = Select::with_theme(&theme)
+                    .with_prompt("削除するリレーを選択")
+                    .items(&items)
+                    .interact()?;
+                let url_to_delete = &items[to_delete_idx].split(' ').next().unwrap().to_string();
+                if Confirm::with_theme(&theme)
+                    .with_prompt(format!("本当に {} を削除しますか?", url_to_delete))
+                    .interact()?
+                {
+                    relay_markers.remove(url_to_delete);
+                    println!("リレー {} を削除しました。", url_to_delete);
+                }
+            }
+            _ => {
+                // Finish
+                break;
+            }
         }
-        current_relays_str.push('\n');
     }
 
-    let template = r#"# Read — これによりリレーはプライベート／非表示の受信箱になります。受信箱のように機能しますが、そのように宣伝されることはありません。kaniはこのリレーであなたを参照するイベントを探します。
-#   (例: wss://relay.example.com #read)
-# Inbox — Readと同様ですが、他のクライアントがこのリレーにあなたをタグ付けしたイベントを送信できるように宣伝されます。これを3つか4つ持つことをお勧めします。
-#   (例: wss://relay.example.com #Inbox)
-# Write — これによりリレーはプライベート／非表示の送信箱になります。送信箱のように機能しますが、そのように宣伝されることはありません。kaniはここにあなたのイベントを投稿します。
-#   (例: wss://relay.example.com #write)
-# Outbox — Writeと同様ですが、他のクライアントがこのリレーからあなたのイベントを取得できるように宣伝されます。これを3つから5つ持つことをお勧めします。
-#   (例: wss://relay.example.com #Outbox)
-# Discover — この設定はリレーが他の人のリレーリストを見つけるために使われることを意味します。
-#   (例: wss://relay.example.com #Discover)
-# Spam Safe — 特定のスパム設定を使う場合、このリレーをスパムフィルターとして信頼することを意味し、Gossipはこのリレーから誰の返信も取得します（あなたがフォローしている人だけではなく）。
-#   (例: wss://relay.example.com #Spam Safe)
-# Direct Message — これは受信箱のようなものですが、DM専用です。
-#   (例: wss://relay.example.com #Direct Message)
-# Global feed — グローバルフィードを表示するとき、このリレーからのイベントも含まれます。選択するリレーが多いほど、グローバルフィードは賑やかになります。
-#   (例: wss://relay.example.com #Global feed)
-# Search — Search Relaysを実行するとき、その検索はこのリレーに送信されます。これをいくつか持つことも、非常に良いリレーを見つけた場合は1つだけ持つこともできます。
-#   (例: wss://relay.example.com #Search)
-#
-# --- リレーの例 ---
-# wss://relay.damus.io #read #write
-# wss://relay.snort.social #read #write
-# wss://nostr.wine #read #write
-"#;
-
-    let mut file_content = String::new();
-    file_content.push_str(template);
-    file_content.push('\n');
-    file_content.push_str(&current_relays_str);
-
-    // Create and write to temp file
-    let mut temp_file = tempfile::NamedTempFile::new()?;
-    temp_file.write_all(file_content.as_bytes())?;
-
-    // Open editor
-    let editor = env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
-    let status = StdCommand::new(editor).arg(temp_file.path()).status()?;
-
-    if !status.success() {
-        return Err(Error::Message(
-            "Editor exited with a non-zero status.".to_string(),
-        ));
-    }
-
-    // Read from temp file
-    let new_relays_str = fs::read_to_string(temp_file.path())?;
-
-    // Parse new relays
     let mut tags = Vec::new();
-    for line in new_relays_str.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        let mut parts = line.split('#');
-        let url = parts.next().unwrap().trim();
-        if url.is_empty() {
-            continue;
-        }
-        let markers: Vec<&str> = parts.map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
-
+    for (url, markers) in relay_markers {
         if markers.is_empty() {
             let tag_vec = vec!["r".to_string(), url.to_string()];
             tags.push(Tag::parse(&tag_vec)?);
         } else {
             for m in markers {
-                let tag_vec = vec!["r".to_string(), url.to_string(), m.to_string()];
+                let tag_vec = vec!["r".to_string(), url.to_string(), m];
                 tags.push(Tag::parse(&tag_vec)?);
             }
         }
@@ -184,7 +235,7 @@ async fn edit_relays(secret_key_str: String, relays: Vec<String>) -> Result<(), 
     let builder = EventBuilder::new(Kind::RelayList, "").tags(tags);
     let event = client.sign_event_builder(builder).await?;
     client.send_event(&event).await?;
-    println!("Relay list updated.");
+    println!("リレーリストが更新されました。");
 
     client.shutdown().await;
     Ok(())
