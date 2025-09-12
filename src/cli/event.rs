@@ -181,7 +181,7 @@ async fn create_text_note(
     Ok(())
 }
 
-async fn edit_profile(secret_key_str: String, relays: Vec<String>) -> Result<(), Error> {
+pub async fn edit_profile(secret_key_str: String, relays: Vec<String>) -> Result<(), Error> {
     let keys = Keys::new(SecretKey::from_bech32(&secret_key_str)?);
     let client = connect_client(keys.clone(), relays.clone()).await?;
 

@@ -1,20 +1,30 @@
+use crate::cli::{event, relay};
+use crate::config::load_config;
 use clap::{Parser, Subcommand};
+use dialoguer::{Confirm, theme::ColorfulTheme};
 use nostr::bip39::Mnemonic;
 use nostr::nips::nip49::EncryptedSecretKey;
 use nostr::prelude::{FromBech32, ToBech32};
 use nostr::{Keys, SecretKey};
 use nostr_sdk::prelude::*;
+use crate::cli::CommonOptions;
 
 #[derive(Parser, Clone)]
 pub struct KeyCommand {
     #[command(subcommand)]
     subcommand: KeySubcommand,
+    #[command(flatten)]
+    common: CommonOptions,
 }
 
 #[derive(Subcommand, Clone)]
 enum KeySubcommand {
     /// Generate new keys
-    Generate,
+    Generate {
+        /// Start the onboarding wizard after generating keys
+        #[clap(long, default_value_t = false)]
+        wizard: bool,
+    },
     /// Derives keys from a mnemonic
     FromMnemonic {
         /// Mnemonic phrase
@@ -42,12 +52,39 @@ enum KeySubcommand {
 
 use crate::error::Error;
 
+use crate::cli::common::get_relays;
+
 pub async fn handle_key_command(command: KeyCommand) -> Result<(), Error> {
     match command.subcommand {
-        KeySubcommand::Generate => {
+        KeySubcommand::Generate { wizard } => {
             let keys = Keys::generate();
+            let secret_key_bech32 = keys.secret_key().to_bech32().unwrap();
             println!("Public key: {}", keys.public_key().to_bech32().unwrap());
-            println!("Secret key: {}", keys.secret_key().to_bech32().unwrap());
+            println!("Secret key: {}", secret_key_bech32);
+
+            if wizard {
+                println!("\nStarting onboarding wizard...");
+                let theme = ColorfulTheme::default();
+                let config = load_config()?;
+                let relays = get_relays(&command.common, &config);
+
+                if Confirm::with_theme(&theme)
+                    .with_prompt("Do you want to set up your profile now?")
+                    .default(true)
+                    .interact()?
+                {
+                    event::edit_profile(secret_key_bech32.clone(), relays.clone()).await?;
+                }
+
+                if Confirm::with_theme(&theme)
+                    .with_prompt("Do you want to set up your relay list now?")
+                    .default(true)
+                    .interact()?
+                {
+                    relay::edit_relays(secret_key_bech32, relays).await?;
+                }
+                println!("\nOnboarding complete!");
+            }
         }
         KeySubcommand::FromMnemonic { mnemonic } => {
             let mnemonic = Mnemonic::parse(&mnemonic)?;
