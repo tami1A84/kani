@@ -1,7 +1,7 @@
 use clap::Parser;
+use nostr::nips::nip47::{NostrWalletConnectURI, PayInvoiceRequest, Request, Response};
 use nostr_sdk::prelude::*;
-use nostr::nips::nip47::{Request, NostrWalletConnectURI, Response, PayInvoiceRequest};
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 #[derive(Parser, Clone)]
 pub struct Nip47Command {
@@ -28,10 +28,12 @@ pub enum Nip47Subcommand {
         uri: String,
         /// Bolt11 invoice
         invoice: String,
-    }
+    },
 }
 
-pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn std::error::Error>> {
+use crate::error::Error;
+
+pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Error> {
     match command.subcommand {
         Nip47Subcommand::GetInfo { uri } => {
             let nwc_uri = NostrWalletConnectURI::parse(&uri)?;
@@ -48,7 +50,10 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
             client.connect().await;
 
             let event_id = client.send_event(&event).await?;
-            println!("GetInfo request sent with id: {}", event_id.to_bech32()?);
+            println!(
+                "GetInfo request sent with id: {}",
+                event_id.to_bech32().unwrap()
+            );
 
             // Handle response
             let filter = Filter::new()
@@ -70,7 +75,7 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
                             if let Ok(response) = Response::from_event(&nwc_uri, &event) {
                                 match response.to_get_info() {
                                     Ok(info) => return Some(Ok(info)),
-                                    Err(e) => return Some(Err(e.to_string())),
+                                    Err(e) => return Some(Err(Error::Message(e.to_string()))),
                                 }
                             }
                         }
@@ -80,8 +85,8 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
             };
 
             match timeout(Duration::from_secs(30), fut).await {
-                Ok(Some(Ok(info))) => println!("Received info: {:#?}", info),
-                Ok(Some(Err(e))) => println!("Error from wallet: {}", e),
+                Ok(Some(Ok(info))) => println!("Received info: {info:#?}"),
+                Ok(Some(Err(e))) => println!("Error from wallet: {e}"),
                 _ => println!("Timeout or no response."),
             }
 
@@ -102,7 +107,10 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
             client.connect().await;
 
             let event_id = client.send_event(&event).await?;
-            println!("GetBalance request sent with id: {}", event_id.to_bech32()?);
+            println!(
+                "GetBalance request sent with id: {}",
+                event_id.to_bech32().unwrap()
+            );
 
             // Handle response
             let filter = Filter::new()
@@ -124,7 +132,7 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
                             if let Ok(response) = Response::from_event(&nwc_uri, &event) {
                                 match response.to_get_balance() {
                                     Ok(balance) => return Some(Ok(balance)),
-                                    Err(e) => return Some(Err(e.to_string())),
+                                    Err(e) => return Some(Err(Error::Message(e.to_string()))),
                                 }
                             }
                         }
@@ -134,8 +142,10 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
             };
 
             match timeout(Duration::from_secs(30), fut).await {
-                Ok(Some(Ok(balance))) => println!("Received balance: {} sats", balance.balance / 1000),
-                Ok(Some(Err(e))) => println!("Error from wallet: {}", e),
+                Ok(Some(Ok(balance))) => {
+                    println!("Received balance: {} sats", balance.balance / 1000)
+                }
+                Ok(Some(Err(e))) => println!("Error from wallet: {e}"),
                 _ => println!("Timeout or no response."),
             }
 
@@ -161,7 +171,10 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
             client.connect().await;
 
             let event_id = client.send_event(&event).await?;
-            println!("PayInvoice request sent with id: {}", event_id.to_bech32()?);
+            println!(
+                "PayInvoice request sent with id: {}",
+                event_id.to_bech32().unwrap()
+            );
 
             // Handle response
             let filter = Filter::new()
@@ -183,7 +196,7 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
                             if let Ok(response) = Response::from_event(&nwc_uri, &event) {
                                 match response.to_pay_invoice() {
                                     Ok(res) => return Some(Ok(res)),
-                                    Err(e) => return Some(Err(e.to_string())),
+                                    Err(e) => return Some(Err(Error::Message(e.to_string()))),
                                 }
                             }
                         }
@@ -194,7 +207,7 @@ pub async fn handle_nip47_command(command: Nip47Command) -> Result<(), Box<dyn s
 
             match timeout(Duration::from_secs(30), fut).await {
                 Ok(Some(Ok(res))) => println!("Invoice paid! Preimage: {}", res.preimage),
-                Ok(Some(Err(e))) => println!("Error from wallet: {}", e),
+                Ok(Some(Err(e))) => println!("Error from wallet: {e}"),
                 _ => println!("Timeout or no response."),
             }
 

@@ -1,13 +1,13 @@
 use crate::cli::CommonOptions;
 use crate::config::load_config;
 use clap::Parser;
+use nostr::UnsignedEvent;
 use nostr::nips::nip04;
 use nostr::nips::nip46::{
     NostrConnectMessage, NostrConnectMethod, NostrConnectRequest, NostrConnectURI,
 };
-use nostr::UnsignedEvent;
 use nostr_sdk::prelude::*;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 #[derive(Parser, Clone)]
 pub struct Nip46Command {
@@ -34,13 +34,15 @@ pub enum Nip46Subcommand {
     },
 }
 
-pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Box<dyn std::error::Error>> {
+use crate::error::Error;
+
+pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Error> {
     let config = load_config()?;
     let secret_key_str = command
         .common
         .secret_key
         .or(config.secret_key)
-        .ok_or("Secret key not provided in args or config")?;
+        .ok_or(Error::SecretKeyMissing)?;
 
     match command.subcommand {
         Nip46Subcommand::GetPublicKey { uri } => {
@@ -49,16 +51,15 @@ pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Box<dyn s
 
             let bunker_uri = NostrConnectURI::parse(&uri)?;
 
-            let bunker_pk =
-                if let NostrConnectURI::Bunker {
-                    remote_signer_public_key,
-                    ..
-                } = &bunker_uri
-                {
-                    *remote_signer_public_key
-                } else {
-                    return Err("Not a bunker URI".into());
-                };
+            let bunker_pk = if let NostrConnectURI::Bunker {
+                remote_signer_public_key,
+                ..
+            } = &bunker_uri
+            {
+                *remote_signer_public_key
+            } else {
+                return Err(Error::Message("Not a bunker URI".to_string()));
+            };
 
             let req = NostrConnectRequest::GetPublicKey;
             let msg = NostrConnectMessage::request(&req);
@@ -76,7 +77,7 @@ pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Box<dyn s
 
             println!(
                 "GetPublicKey request sent with id: {}",
-                event.id.to_bech32()?
+                event.id.to_bech32().unwrap()
             );
 
             // Handle response
@@ -123,8 +124,8 @@ pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Box<dyn s
             };
 
             match timeout(Duration::from_secs(30), fut).await {
-                Ok(Some(Ok(pk))) => println!("Received public key: {}", pk.to_bech32()?),
-                Ok(Some(Err(e))) => println!("Error from bunker: {}", e),
+                Ok(Some(Ok(pk))) => println!("Received public key: {}", pk.to_bech32().unwrap()),
+                Ok(Some(Err(e))) => println!("Error from bunker: {e}"),
                 _ => println!("Timeout or no response."),
             }
 
@@ -136,16 +137,15 @@ pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Box<dyn s
 
             let bunker_uri = NostrConnectURI::parse(&uri)?;
 
-            let bunker_pk =
-                if let NostrConnectURI::Bunker {
-                    remote_signer_public_key,
-                    ..
-                } = &bunker_uri
-                {
-                    *remote_signer_public_key
-                } else {
-                    return Err("Not a bunker URI".into());
-                };
+            let bunker_pk = if let NostrConnectURI::Bunker {
+                remote_signer_public_key,
+                ..
+            } = &bunker_uri
+            {
+                *remote_signer_public_key
+            } else {
+                return Err(Error::Message("Not a bunker URI".to_string()));
+            };
 
             let unsigned_event = UnsignedEvent::from_json(&event_json)?;
             let req = NostrConnectRequest::SignEvent(unsigned_event);
@@ -162,7 +162,10 @@ pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Box<dyn s
             let event = client.sign_event_builder(builder).await?;
             client.send_event(&event).await?;
 
-            println!("SignEvent request sent with id: {}", event.id.to_bech32()?);
+            println!(
+                "SignEvent request sent with id: {}",
+                event.id.to_bech32().unwrap()
+            );
 
             let filter = Filter::new()
                 .kind(Kind::EncryptedDirectMessage)
@@ -208,7 +211,7 @@ pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Box<dyn s
 
             match timeout(Duration::from_secs(30), fut).await {
                 Ok(Some(Ok(evt))) => println!("Received signed event: {}", evt.as_json()),
-                Ok(Some(Err(e))) => println!("Error from bunker: {}", e),
+                Ok(Some(Err(e))) => println!("Error from bunker: {e}"),
                 _ => println!("Timeout or no response."),
             }
 

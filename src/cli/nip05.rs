@@ -1,6 +1,6 @@
 use clap::Parser;
-use nostr_sdk::prelude::*;
 use nostr::nips::nip05::{Nip05Address, verify_from_raw_json};
+use nostr_sdk::prelude::*;
 
 #[derive(Parser, Clone)]
 pub struct Nip05Command {
@@ -18,10 +18,12 @@ pub enum Nip05Subcommand {
         /// Public key to verify against (bech32)
         #[clap(short, long)]
         pubkey: String,
-    }
+    },
 }
 
-pub async fn handle_nip05_command(command: Nip05Command) -> Result<(), Box<dyn std::error::Error>> {
+use crate::error::Error;
+
+pub async fn handle_nip05_command(command: Nip05Command) -> Result<(), Error> {
     match command.subcommand {
         Nip05Subcommand::Verify { nip05, pubkey } => {
             let pk = PublicKey::from_bech32(&pubkey)?;

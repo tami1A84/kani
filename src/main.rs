@@ -1,9 +1,13 @@
 mod cli;
 mod config;
+mod error;
+
+use anyhow::Result;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    cli::run().await
+async fn main() -> Result<()> {
+    cli::run().await?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -18,4 +22,3 @@ mod tests {
         // For now, just parsing is a good enough smoke test.
     }
 }
-

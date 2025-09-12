@@ -1,9 +1,9 @@
 use clap::{Parser, Subcommand};
-use nostr_sdk::prelude::*;
-use nostr::prelude::{ToBech32, FromBech32};
 use nostr::bip39::Mnemonic;
 use nostr::nips::nip49::EncryptedSecretKey;
+use nostr::prelude::{FromBech32, ToBech32};
 use nostr::{Keys, SecretKey};
+use nostr_sdk::prelude::*;
 
 #[derive(Parser, Clone)]
 pub struct KeyCommand {
@@ -40,28 +40,36 @@ enum KeySubcommand {
     },
 }
 
-pub async fn handle_key_command(command: KeyCommand) -> Result<(), Box<dyn std::error::Error>> {
+use crate::error::Error;
+
+pub async fn handle_key_command(command: KeyCommand) -> Result<(), Error> {
     match command.subcommand {
         KeySubcommand::Generate => {
             let keys = Keys::generate();
-            println!("Public key: {}", keys.public_key().to_bech32()?);
-            println!("Secret key: {}", keys.secret_key().to_bech32()?);
+            println!("Public key: {}", keys.public_key().to_bech32().unwrap());
+            println!("Secret key: {}", keys.secret_key().to_bech32().unwrap());
         }
         KeySubcommand::FromMnemonic { mnemonic } => {
             let mnemonic = Mnemonic::parse(&mnemonic)?;
             let keys = Keys::from_mnemonic(mnemonic.to_string(), None)?;
-            println!("Public key: {}", keys.public_key().to_bech32()?);
-            println!("Secret key: {}", keys.secret_key().to_bech32()?);
+            println!("Public key: {}", keys.public_key().to_bech32().unwrap());
+            println!("Secret key: {}", keys.secret_key().to_bech32().unwrap());
         }
-        KeySubcommand::Encrypt { secret_key, password } => {
+        KeySubcommand::Encrypt {
+            secret_key,
+            password,
+        } => {
             let sk = SecretKey::from_bech32(&secret_key)?;
             let encrypted = sk.encrypt(&password)?;
-            println!("{}", encrypted.to_bech32()?);
+            println!("{}", encrypted.to_bech32().unwrap());
         }
-        KeySubcommand::Decrypt { encrypted_key, password } => {
+        KeySubcommand::Decrypt {
+            encrypted_key,
+            password,
+        } => {
             let encrypted = EncryptedSecretKey::from_bech32(&encrypted_key)?;
             let sk = encrypted.decrypt(&password)?;
-            println!("{}", sk.to_bech32()?);
+            println!("{}", sk.to_bech32().unwrap());
         }
     }
     Ok(())
