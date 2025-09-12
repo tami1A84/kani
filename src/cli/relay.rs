@@ -65,7 +65,7 @@ pub async fn handle_relay_command(command: RelayCommand) -> Result<(), Error> {
     Ok(())
 }
 
-async fn edit_relays(secret_key_str: String, relays: Vec<String>) -> Result<(), Error> {
+pub async fn edit_relays(secret_key_str: String, relays: Vec<String>) -> Result<(), Error> {
     let keys = Keys::new(SecretKey::from_bech32(&secret_key_str)?);
     let client = connect_client(keys.clone(), relays.clone()).await?;
 
