@@ -1,25 +1,20 @@
 use clap::{Parser, Subcommand};
 
-pub mod key;
-pub mod event;
+pub mod common;
+pub mod config;
 pub mod contact;
-pub mod nip19;
-pub mod uri;
+pub mod event;
+pub mod key;
 pub mod nip05;
+pub mod nip19;
 pub mod nip46;
 pub mod nip47;
-pub mod config;
+pub mod uri;
 
 use self::{
-    contact::ContactCommand,
-    event::EventCommand,
-    key::KeyCommand,
-    nip19::Nip19Command,
+    config::ConfigCommand, contact::ContactCommand, event::EventCommand, key::KeyCommand,
+    nip05::Nip05Command, nip19::Nip19Command, nip46::Nip46Command, nip47::Nip47Command,
     uri::UriCommand,
-    nip05::Nip05Command,
-    nip46::Nip46Command,
-    nip47::Nip47Command,
-    config::ConfigCommand,
 };
 
 #[derive(Parser, Clone)]
@@ -62,13 +57,17 @@ enum Command {
     Config(ConfigCommand),
 }
 
-pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+use crate::error::Error;
+
+pub async fn run() -> Result<(), Error> {
     let cli = Cli::parse();
 
     match cli.command {
         Command::Key(key_command) => key::handle_key_command(key_command).await?,
         Command::Event(event_command) => event::handle_event_command(event_command).await?,
-        Command::Contact(contact_command) => contact::handle_contact_command(contact_command).await?,
+        Command::Contact(contact_command) => {
+            contact::handle_contact_command(contact_command).await?
+        }
         Command::Nip19(nip19_command) => nip19::handle_nip19_command(nip19_command).await?,
         Command::Uri(uri_command) => uri::handle_uri_command(uri_command).await?,
         Command::Nip05(nip05_command) => nip05::handle_nip05_command(nip05_command).await?,

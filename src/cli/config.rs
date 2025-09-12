@@ -12,9 +12,9 @@ enum ConfigSubCommand {
     Path,
 }
 
-pub async fn handle_config_command(
-    config_command: ConfigCommand,
-) -> Result<(), Box<dyn std::error::Error>> {
+use crate::error::Error;
+
+pub async fn handle_config_command(config_command: ConfigCommand) -> Result<(), Error> {
     match config_command.command {
         ConfigSubCommand::Path => {
             let path = crate::config::get_config_path()?;

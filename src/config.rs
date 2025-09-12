@@ -8,13 +8,17 @@ pub struct Config {
     pub relays: Option<Vec<String>>,
 }
 
-pub fn get_config_path() -> Result<PathBuf, &'static str> {
+use crate::error::Error;
+
+pub fn get_config_path() -> Result<PathBuf, Error> {
     dirs::config_dir()
-        .ok_or("Could not find config directory")
+        .ok_or(Error::Message(
+            "Could not find config directory".to_string(),
+        ))
         .map(|p| p.join("kani/config.toml"))
 }
 
-pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
+pub fn load_config() -> Result<Config, Error> {
     let config_path = get_config_path()?;
 
     if !config_path.exists() {

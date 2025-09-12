@@ -1,17 +1,19 @@
 use crate::cli::CommonOptions;
+use crate::cli::common::{connect_client, get_relays};
 use crate::config::load_config;
 use clap::{Parser, Subcommand};
 use nostr::nips::{nip04, nip44};
 use nostr::prelude::{FromBech32, ToBech32};
 use nostr::{EventBuilder, Keys, SecretKey};
+use nostr_sdk::Url;
 use nostr_sdk::nips::nip09::EventDeletionRequest;
 use nostr_sdk::prelude::*;
 use serde_json;
 use std::env;
-use std::fs::File;
 use std::io::Write;
 use std::process::Command as StdCommand;
 use std::time::Duration;
+use tempfile::NamedTempFile;
 
 #[derive(Parser, Clone)]
 pub struct EventCommand {
@@ -84,148 +86,64 @@ enum EventSubcommand {
     EditProfile,
 }
 
-pub async fn handle_event_command(command: EventCommand) -> Result<(), Box<dyn std::error::Error>> {
-    let config = load_config()?;
+use crate::error::Error;
 
-    let relays = if !command.common.relay.is_empty() {
-        command.common.relay
-    } else {
-        config.relays.clone().unwrap_or_default()
-    };
+pub async fn handle_event_command(command: EventCommand) -> Result<(), Error> {
+    let config = load_config()?;
+    let relays = get_relays(&command.common, &config);
 
     match command.subcommand {
         EventSubcommand::CreateTextNote {
             content,
             gift_wrap_recipient,
         } => {
-            if relays.is_empty() {
-                return Err("No relays provided in args or config".into());
-            }
-            let secret_key_str = command.common.secret_key.or(config.secret_key).ok_or("Secret key not provided")?;
-            let secret_key = SecretKey::from_bech32(&secret_key_str)?;
-            let keys = Keys::new(secret_key);
-            let client = Client::new(keys.clone());
-            for relay in relays {
-                client.add_relay(&relay).await?;
-            }
-            client.connect().await;
-
-            let builder = EventBuilder::text_note(&content);
-
-            let event_to_send = if let Some(recipient_str) = gift_wrap_recipient {
-                let recipient_pk = PublicKey::from_bech32(&recipient_str)?;
-                let rumor = builder.build(keys.public_key());
-                EventBuilder::gift_wrap(&keys, &recipient_pk, rumor, []).await?
-            } else {
-                client.sign_event_builder(builder).await?
-            };
-
-            let event_id = client.send_event(&event_to_send).await?;
-            println!("Event sent with id: {}", event_id.to_bech32()?);
-
-            client.shutdown().await;
+            let secret_key_str = command
+                .common
+                .secret_key
+                .or(config.secret_key)
+                .ok_or(Error::SecretKeyMissing)?;
+            create_text_note(content, gift_wrap_recipient, secret_key_str, relays).await?;
         }
-        EventSubcommand::CreateDm {
-            recipient,
-            content,
-        } => {
-            if relays.is_empty() {
-                return Err("No relays provided in args or config".into());
-            }
-            let secret_key_str = command.common.secret_key.or(config.secret_key).ok_or("Secret key not provided")?;
-            let secret_key = SecretKey::from_bech32(&secret_key_str)?;
-            let keys = Keys::new(secret_key);
-            let recipient_pubkey = PublicKey::from_bech32(&recipient)?;
-
-            let client = Client::new(keys.clone());
-            for relay in relays {
-                client.add_relay(&relay).await?;
-            }
-            client.connect().await;
-
-            let sk = keys.secret_key();
-            let encrypted_content = nip04::encrypt(sk, &recipient_pubkey, &content)?;
-            let builder = EventBuilder::new(Kind::EncryptedDirectMessage, encrypted_content)
-                .tag(Tag::public_key(recipient_pubkey));
-            let event = client.sign_event_builder(builder).await?;
-            let event_id = client.send_event(&event).await?;
-            println!("DM event sent with id: {}", event_id.to_bech32()?);
-
-            client.shutdown().await;
+        EventSubcommand::CreateDm { recipient, content } => {
+            let secret_key_str = command
+                .common
+                .secret_key
+                .or(config.secret_key)
+                .ok_or(Error::SecretKeyMissing)?;
+            create_dm(recipient, content, secret_key_str, relays).await?;
         }
         EventSubcommand::Get { id } => {
-            if relays.is_empty() {
-                return Err("No relays provided in args or config".into());
-            }
-            let event_id =
-                EventId::from_bech32(&id).or_else(|_| EventId::from_hex(&id))?;
-
-            let keys = Keys::generate();
-            let client = Client::new(keys);
-
-            let relay_urls: Vec<&str> = relays.iter().map(|s| s.as_str()).collect();
-
-            let filter = Filter::new().id(event_id);
-            let timeout = Duration::from_secs(10);
-            let events = client
-                .fetch_events_from(relay_urls, filter, timeout)
-                .await?;
-
-            if let Some(event) = events.first() {
-                println!("{:#?}", event);
-            } else {
-                println!("Event not found.");
-            }
-
-            client.shutdown().await;
+            get_event(id, relays).await?;
         }
         EventSubcommand::Delete { event_id } => {
-            if relays.is_empty() {
-                return Err("No relays provided in args or config".into());
-            }
-            let secret_key_str = command.common.secret_key.or(config.secret_key).ok_or("Secret key not provided")?;
-            let secret_key = SecretKey::from_bech32(&secret_key_str)?;
-            let keys = Keys::new(secret_key);
-            let client = Client::new(keys);
-            for relay in relays {
-                client.add_relay(&relay).await?;
-            }
-            client.connect().await;
-
-            let event_id_to_delete =
-                EventId::from_bech32(&event_id).or_else(|_| EventId::from_hex(&event_id))?;
-
-            let request = EventDeletionRequest {
-                ids: vec![event_id_to_delete],
-                coordinates: vec![],
-                reason: None,
-            };
-            let builder = EventBuilder::delete(request);
-            let signed_event = client.sign_event_builder(builder).await?;
-            let deletion_event_id = client.send_event(&signed_event).await?;
-            println!(
-                "Deletion event sent with id: {}",
-                deletion_event_id.to_bech32()?
-            );
-
-            client.shutdown().await;
+            let secret_key_str = command
+                .common
+                .secret_key
+                .or(config.secret_key)
+                .ok_or(Error::SecretKeyMissing)?;
+            delete_event(event_id, secret_key_str, relays).await?;
         }
-        EventSubcommand::EncryptPayload {
-            recipient,
-            content,
-        } => {
-            let secret_key_str = command.common.secret_key.or(config.secret_key).ok_or("Secret key not provided")?;
+        EventSubcommand::EncryptPayload { recipient, content } => {
+            let secret_key_str = command
+                .common
+                .secret_key
+                .or(config.secret_key)
+                .ok_or(Error::SecretKeyMissing)?;
             let sk = SecretKey::from_bech32(&secret_key_str)?;
             let pk = PublicKey::from_bech32(&recipient)?;
             let encrypted = nip44::encrypt(&sk, &pk, &content, nip44::Version::default())?;
-            println!("{}", encrypted);
+            println!("{encrypted}");
         }
         EventSubcommand::DecryptPayload { sender, content } => {
-            let secret_key_str = command.common.secret_key.or(config.secret_key).ok_or("Secret key not provided")?;
+            let secret_key_str = command
+                .common
+                .secret_key
+                .or(config.secret_key)
+                .ok_or(Error::SecretKeyMissing)?;
             let sk = SecretKey::from_bech32(&secret_key_str)?;
             let pk = PublicKey::from_bech32(&sender)?;
             let decrypted = nip44::decrypt(&sk, &pk, &content)?;
-            println!("{}", decrypted);
+            println!("{decrypted}");
         }
         EventSubcommand::CreateLongFormPost {
             file,
@@ -233,118 +151,244 @@ pub async fn handle_event_command(command: EventCommand) -> Result<(), Box<dyn s
             summary,
             d_identifier,
         } => {
-            if relays.is_empty() {
-                return Err("No relays provided in args or config".into());
-            }
-            let secret_key_str = command.common.secret_key.or(config.secret_key).ok_or("Secret key not provided")?;
-            let secret_key = SecretKey::from_bech32(&secret_key_str)?;
-            let keys = Keys::new(secret_key);
-            let client = Client::new(keys.clone());
-            for relay in relays {
-                client.add_relay(&relay).await?;
-            }
-            client.connect().await;
-
-            let content = std::fs::read_to_string(&file)?;
-
-            let d_tag_value = d_identifier.unwrap_or_else(|| {
-                std::path::Path::new(&file)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("default-d-identifier")
-                    .to_string()
-            });
-
-            let mut tags: Vec<Tag> = vec![Tag::identifier(d_tag_value)];
-
-            if let Some(title) = title {
-                tags.push(Tag::parse(["title", &title.as_str()])?);
-            }
-            if let Some(summary) = summary {
-                tags.push(Tag::parse(["summary", &summary.as_str()])?);
-            }
-
-            let publication_timestamp = Timestamp::now();
-            let timestamp_str = publication_timestamp.as_u64().to_string();
-            tags.push(Tag::parse(["published_at", &timestamp_str])?);
-
-            let builder = EventBuilder::new(Kind::Custom(30023), &content).tags(tags);
-            let event = client.sign_event_builder(builder).await?;
-            let event_id = client.send_event(&event).await?;
-            println!(
-                "Long-form post sent with id: {}",
-                event_id.to_bech32()?
-            );
-
-            client.shutdown().await;
+            let secret_key_str = command
+                .common
+                .secret_key
+                .or(config.secret_key)
+                .ok_or(Error::SecretKeyMissing)?;
+            create_long_form_post(file, title, summary, d_identifier, secret_key_str, relays)
+                .await?;
         }
         EventSubcommand::EditProfile => {
-            if relays.is_empty() {
-                return Err("No relays provided in args or config".into());
-            }
-            let secret_key_str = command.common.secret_key.or(config.secret_key).ok_or("Secret key not provided")?;
-            let secret_key = SecretKey::from_bech32(&secret_key_str)?;
-            let keys = Keys::new(secret_key);
-            let client = Client::new(keys.clone());
-            for relay in &relays {
-                client.add_relay(relay).await?;
-            }
-            client.connect().await;
-
-            let filter = Filter::new()
-                .author(keys.public_key())
-                .kind(Kind::Metadata)
-                .limit(1);
-            let timeout = Duration::from_secs(10);
-            let relay_urls: Vec<&str> = relays.iter().map(|s| s.as_str()).collect();
-            let events = client
-                .fetch_events_from(relay_urls, filter, timeout)
-                .await?;
-
-            let mut use_template = true;
-            let mut current_metadata = Metadata::new();
-
-            if let Some(event) = events.first() {
-                if !event.content.is_empty() && event.content != "{}" {
-                    current_metadata = Metadata::from_json(&event.content)?;
-                    use_template = false;
-                }
-            }
-
-            if use_template {
-                current_metadata.name = Some("new_user".to_string());
-                current_metadata.display_name = Some("New User".to_string());
-                current_metadata.about = Some("A short description of the user.".to_string());
-                current_metadata.picture = Some(Url::parse("https://example.com/picture.jpg").unwrap().to_string());
-                current_metadata.banner = Some(Url::parse("https://example.com/banner.jpg").unwrap().to_string());
-                current_metadata.website = Some(Url::parse("https://example.com").unwrap().to_string());
-                current_metadata.lud16 = Some("lightning@address.com".to_string());
-                current_metadata.nip05 = Some("user@example.com".to_string());
-            }
-
-            let mut temp_file = File::create("profile.json")?;
-            let pretty_json = serde_json::to_string_pretty(&current_metadata)?;
-            temp_file.write_all(pretty_json.as_bytes())?;
-
-            let editor = env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
-            let status = StdCommand::new(editor).arg("profile.json").status()?;
-
-            if !status.success() {
-                return Err("Editor command failed".into());
-            }
-
-            let updated_json = std::fs::read_to_string("profile.json")?;
-            let updated_metadata: Metadata = serde_json::from_str(&updated_json)?;
-
-            let builder = EventBuilder::metadata(&updated_metadata);
-            let event = client.sign_event_builder(builder).await?;
-            let event_id = client.send_event(&event).await?;
-
-            println!("Profile updated with event id: {}", event_id.to_bech32()?);
-
-            std::fs::remove_file("profile.json")?;
-            client.shutdown().await;
+            let secret_key_str = command
+                .common
+                .secret_key
+                .or(config.secret_key)
+                .ok_or(Error::SecretKeyMissing)?;
+            edit_profile(secret_key_str, relays).await?;
         }
     }
+    Ok(())
+}
+
+async fn create_text_note(
+    content: String,
+    gift_wrap_recipient: Option<String>,
+    secret_key_str: String,
+    relays: Vec<String>,
+) -> Result<(), Error> {
+    let secret_key = SecretKey::from_bech32(&secret_key_str)?;
+    let keys = Keys::new(secret_key);
+    let client = connect_client(keys.clone(), relays).await?;
+
+    let builder = EventBuilder::text_note(&content);
+
+    let event_to_send = if let Some(recipient_str) = gift_wrap_recipient {
+        let recipient_pk = PublicKey::from_bech32(&recipient_str)?;
+        let rumor = builder.build(keys.public_key());
+        EventBuilder::gift_wrap(&keys, &recipient_pk, rumor, []).await?
+    } else {
+        client.sign_event_builder(builder).await?
+    };
+
+    let event_id = client.send_event(&event_to_send).await?;
+    println!("Event sent with id: {}", event_id.to_bech32().unwrap());
+
+    client.shutdown().await;
+    Ok(())
+}
+
+async fn edit_profile(secret_key_str: String, relays: Vec<String>) -> Result<(), Error> {
+    let keys = Keys::new(SecretKey::from_bech32(&secret_key_str)?);
+    let client = connect_client(keys.clone(), relays.clone()).await?;
+
+    let filter = Filter::new()
+        .author(keys.public_key())
+        .kind(Kind::Metadata)
+        .limit(1);
+    let timeout = Duration::from_secs(10);
+    let relay_urls: Vec<&str> = relays.iter().map(|s| s.as_str()).collect();
+    let events = client
+        .fetch_events_from(relay_urls, filter, timeout)
+        .await?;
+
+    let mut use_template = true;
+    let mut current_metadata = Metadata::new();
+
+    if let Some(event) = events.first() {
+        if !event.content.is_empty() && event.content != "{}" {
+            current_metadata = Metadata::from_json(&event.content)?;
+            use_template = false;
+        }
+    }
+
+    if use_template {
+        current_metadata.name = Some("new_user".to_string());
+        current_metadata.display_name = Some("New User".to_string());
+        current_metadata.about = Some("A short description of the user.".to_string());
+        current_metadata.picture = Some(Url::parse("https://example.com/picture.jpg")?.to_string());
+        current_metadata.banner = Some(Url::parse("https://example.com/banner.jpg")?.to_string());
+        current_metadata.website = Some(Url::parse("https://example.com")?.to_string());
+        current_metadata.lud16 = Some("lightning@address.com".to_string());
+        current_metadata.nip05 = Some("user@example.com".to_string());
+    }
+
+    let mut temp_file = NamedTempFile::new()?;
+    let pretty_json = serde_json::to_string_pretty(&current_metadata)?;
+    temp_file.write_all(pretty_json.as_bytes())?;
+
+    let editor = env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
+    let status = StdCommand::new(editor).arg(temp_file.path()).status()?;
+
+    if !status.success() {
+        return Err(Error::Message("Editor command failed".to_string()));
+    }
+
+    let updated_json = std::fs::read_to_string(temp_file.path())?;
+    let updated_metadata: Metadata = serde_json::from_str(&updated_json)?;
+
+    let builder = EventBuilder::metadata(&updated_metadata);
+    let event = client.sign_event_builder(builder).await?;
+    let event_id = client.send_event(&event).await?;
+
+    println!(
+        "Profile updated with event id: {}",
+        event_id.to_bech32().unwrap()
+    );
+
+    client.shutdown().await;
+    Ok(())
+}
+
+async fn create_long_form_post(
+    file: String,
+    title: Option<String>,
+    summary: Option<String>,
+    d_identifier: Option<String>,
+    secret_key_str: String,
+    relays: Vec<String>,
+) -> Result<(), Error> {
+    let keys = Keys::new(SecretKey::from_bech32(&secret_key_str)?);
+    let client = connect_client(keys.clone(), relays).await?;
+
+    let content = std::fs::read_to_string(&file)?;
+
+    let d_tag_value = d_identifier.unwrap_or_else(|| {
+        std::path::Path::new(&file)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("default-d-identifier")
+            .to_string()
+    });
+
+    let mut tags: Vec<Tag> = vec![Tag::identifier(d_tag_value)];
+
+    if let Some(title) = title {
+        tags.push(Tag::parse(["title", title.as_str()])?);
+    }
+    if let Some(summary) = summary {
+        tags.push(Tag::parse(["summary", summary.as_str()])?);
+    }
+
+    let publication_timestamp = Timestamp::now();
+    let timestamp_str = publication_timestamp.as_u64().to_string();
+    tags.push(Tag::parse(["published_at", &timestamp_str])?);
+
+    let builder = EventBuilder::new(Kind::Custom(30023), &content).tags(tags);
+    let event = client.sign_event_builder(builder).await?;
+    let event_id = client.send_event(&event).await?;
+    println!(
+        "Long-form post sent with id: {}",
+        event_id.to_bech32().unwrap()
+    );
+
+    client.shutdown().await;
+    Ok(())
+}
+
+async fn delete_event(
+    event_id_str: String,
+    secret_key_str: String,
+    relays: Vec<String>,
+) -> Result<(), Error> {
+    let keys = Keys::new(SecretKey::from_bech32(&secret_key_str)?);
+    let client = connect_client(keys, relays).await?;
+
+    let event_id_to_delete = if let Ok(id) = EventId::from_bech32(&event_id_str) {
+        id
+    } else {
+        EventId::from_hex(&event_id_str)?
+    };
+
+    let request = EventDeletionRequest {
+        ids: vec![event_id_to_delete],
+        coordinates: vec![],
+        reason: None,
+    };
+    let builder = EventBuilder::delete(request);
+    let signed_event = client.sign_event_builder(builder).await?;
+    let deletion_event_id = client.send_event(&signed_event).await?;
+    println!(
+        "Deletion event sent with id: {}",
+        deletion_event_id.to_bech32().unwrap()
+    );
+
+    client.shutdown().await;
+    Ok(())
+}
+
+async fn get_event(id: String, relays: Vec<String>) -> Result<(), Error> {
+    if relays.is_empty() {
+        return Err(Error::Message(
+            "No relays provided in args or config".to_string(),
+        ));
+    }
+    let event_id = if let Ok(id) = EventId::from_bech32(&id) {
+        id
+    } else {
+        EventId::from_hex(&id)?
+    };
+
+    let keys = Keys::generate();
+    let client = Client::new(keys);
+
+    let relay_urls: Vec<&str> = relays.iter().map(|s| s.as_str()).collect();
+
+    let filter = Filter::new().id(event_id);
+    let timeout = Duration::from_secs(10);
+    let events = client
+        .fetch_events_from(relay_urls, filter, timeout)
+        .await?;
+
+    if let Some(event) = events.first() {
+        println!("{event:#?}");
+    } else {
+        println!("Event not found.");
+    }
+
+    Ok(())
+}
+
+async fn create_dm(
+    recipient: String,
+    content: String,
+    secret_key_str: String,
+    relays: Vec<String>,
+) -> Result<(), Error> {
+    let secret_key = SecretKey::from_bech32(&secret_key_str)?;
+    let keys = Keys::new(secret_key);
+    let recipient_pubkey = PublicKey::from_bech32(&recipient)?;
+
+    let client = connect_client(keys.clone(), relays).await?;
+
+    let sk = keys.secret_key();
+    let encrypted_content = nip04::encrypt(sk, &recipient_pubkey, &content)?;
+    let builder = EventBuilder::new(Kind::EncryptedDirectMessage, encrypted_content)
+        .tag(Tag::public_key(recipient_pubkey));
+    let event = client.sign_event_builder(builder).await?;
+    let event_id = client.send_event(&event).await?;
+    println!("DM event sent with id: {}", event_id.to_bech32().unwrap());
+
+    client.shutdown().await;
     Ok(())
 }
