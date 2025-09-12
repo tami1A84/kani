@@ -22,8 +22,8 @@
 
 ```bash
 # リポジトリをクローン (URLは適宜変更してください)
-git clone https://github.com/USERNAME/kani.git
-cd kani
+git clone https://github.com/tami1A84/kani-nostr-cli.git
+cd kani-nostr-cli
 
 # ビルド & インストール
 cargo install --path .
