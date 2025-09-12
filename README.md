@@ -76,7 +76,7 @@ kani event <COMMAND>
   ```
   kani event delete --relay wss://relay.damus.io --secret-key <nsec_secret_key> <note_event_id_to_delete>
   ```
-- `encrypt-payload`: ペイロードを暗о化します (NIP-44)
+- `encrypt-payload`: ペイロードを暗合化します (NIP-44)
 
   **入力例:**
   ```
