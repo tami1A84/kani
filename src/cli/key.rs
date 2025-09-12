@@ -1,7 +1,7 @@
 use crate::cli::{event, relay};
-use crate::config::load_config;
+use crate::config::{load_config, save_config};
 use clap::{Parser, Subcommand};
-use dialoguer::{Confirm, theme::ColorfulTheme};
+use dialoguer::{Confirm, Password, theme::ColorfulTheme};
 use nostr::bip39::Mnemonic;
 use nostr::nips::nip49::EncryptedSecretKey;
 use nostr::prelude::{FromBech32, ToBech32};
@@ -81,8 +81,25 @@ pub async fn handle_key_command(command: KeyCommand) -> Result<(), Error> {
                     .default(true)
                     .interact()?
                 {
-                    relay::edit_relays(secret_key_bech32, relays).await?;
+                    relay::edit_relays(secret_key_bech32.clone(), relays).await?;
                 }
+
+                if Confirm::with_theme(&theme)
+                    .with_prompt("Do you want to save your secret key to the config file (encrypted)?")
+                    .default(true)
+                    .interact()?
+                {
+                    let password = Password::with_theme(&theme)
+                        .with_prompt("Enter a password to encrypt your secret key")
+                        .interact()?;
+                    let sk = SecretKey::from_bech32(&secret_key_bech32)?;
+                    let encrypted_key = sk.encrypt(&password)?;
+                    let mut config = load_config()?;
+                    config.encrypted_secret_key = Some(encrypted_key.to_bech32()?);
+                    save_config(&config)?;
+                    println!("Encrypted secret key saved to config file.");
+                }
+
                 println!("\nOnboarding complete!");
             }
         }
