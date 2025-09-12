@@ -58,12 +58,6 @@ kani event <COMMAND>
   ```
   kani event create-text-note --relay wss://relay.damus.io --secret-key <nsec_secret_key> --gift-wrap-recipient <npub_recipient_key> "This is a wrapped note"
   ```
-- `create-dm`: ダイレクトメッセージを作成します (NIP-04)
-
-  **入力例:**
-  ```
-  kani event create-dm --relay wss://relay.damus.io --secret-key <nsec_secret_key> --recipient <npub_recipient_key> "Hello, secret world!"
-  ```
 - `get`: IDでイベントを取得します
 
   **入力例:**

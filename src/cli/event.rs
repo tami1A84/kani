@@ -2,7 +2,7 @@ use crate::cli::CommonOptions;
 use crate::cli::common::{connect_client, get_relays};
 use crate::config::load_config;
 use clap::{Parser, Subcommand};
-use nostr::nips::{nip04, nip44};
+use nostr::nips::nip44;
 use nostr::prelude::{FromBech32, ToBech32};
 use nostr::{EventBuilder, Keys, SecretKey};
 use nostr_sdk::Url;
@@ -32,14 +32,6 @@ enum EventSubcommand {
         /// Recipient public key for gift wrap (NIP-59)
         #[clap(long)]
         gift_wrap_recipient: Option<String>,
-    },
-    /// Create a direct message (NIP-04)
-    CreateDm {
-        /// Recipient public key (bech32)
-        #[clap(short, long)]
-        recipient: String,
-        /// DM content
-        content: String,
     },
     /// Get an event by id
     Get {
@@ -103,14 +95,6 @@ pub async fn handle_event_command(command: EventCommand) -> Result<(), Error> {
                 .or(config.secret_key)
                 .ok_or(Error::SecretKeyMissing)?;
             create_text_note(content, gift_wrap_recipient, secret_key_str, relays).await?;
-        }
-        EventSubcommand::CreateDm { recipient, content } => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
-            create_dm(recipient, content, secret_key_str, relays).await?;
         }
         EventSubcommand::Get { id } => {
             get_event(id, relays).await?;
@@ -366,29 +350,5 @@ async fn get_event(id: String, relays: Vec<String>) -> Result<(), Error> {
         println!("Event not found.");
     }
 
-    Ok(())
-}
-
-async fn create_dm(
-    recipient: String,
-    content: String,
-    secret_key_str: String,
-    relays: Vec<String>,
-) -> Result<(), Error> {
-    let secret_key = SecretKey::from_bech32(&secret_key_str)?;
-    let keys = Keys::new(secret_key);
-    let recipient_pubkey = PublicKey::from_bech32(&recipient)?;
-
-    let client = connect_client(keys.clone(), relays).await?;
-
-    let sk = keys.secret_key();
-    let encrypted_content = nip04::encrypt(sk, &recipient_pubkey, &content)?;
-    let builder = EventBuilder::new(Kind::EncryptedDirectMessage, encrypted_content)
-        .tag(Tag::public_key(recipient_pubkey));
-    let event = client.sign_event_builder(builder).await?;
-    let event_id = client.send_event(&event).await?;
-    println!("DM event sent with id: {}", event_id.to_bech32().unwrap());
-
-    client.shutdown().await;
     Ok(())
 }
