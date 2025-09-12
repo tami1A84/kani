@@ -59,9 +59,6 @@ pub enum Error {
     #[error("NIP-47 error: {0}")]
     Nip47(#[from] nostr::nips::nip47::Error),
 
-    #[error("NIP-04 error: {0}")]
-    Nip04(#[from] nostr::nips::nip04::Error),
-
     #[error("NIP-44 error: {0}")]
     Nip44(#[from] nostr::nips::nip44::Error),
 
