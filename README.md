@@ -110,6 +110,23 @@ kani-nostr-cli contact set --relay wss://relay.damus.io --secret-key <nsec_secre
 </details>
 
 <details>
+<summary>📡 <strong>relay</strong> - リレーリスト管理</summary>
+
+**使用方法:** `kani-nostr-cli relay <SUBCOMMAND>`
+
+| サブコマンド | 説明                                                   |
+| ------------ | ------------------------------------------------------ |
+| `set`        | リレーリストを設定します (NIP-65)                      |
+| `get`        | リレーリストを取得します (NIP-65)                      |
+| `edit`       | エディタでリレーリストを対話的に編集します (NIP-65)    |
+
+**入力例 (`get`):**
+```bash
+kani-nostr-cli relay get --pubkey <npub_key> --relay wss://relay.damus.io
+```
+</details>
+
+<details>
 <summary>🌐 <strong>nip05</strong> - DNSベースの識別子</summary>
 
 **使用方法:** `kani-nostr-cli nip05 <SUBCOMMAND>`
