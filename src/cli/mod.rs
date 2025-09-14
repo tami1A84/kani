@@ -5,6 +5,8 @@ pub mod config;
 pub mod contact;
 pub mod event;
 pub mod key;
+pub mod login;
+pub mod logout;
 pub mod nip05;
 pub mod nip19;
 pub mod nip46;
@@ -14,8 +16,8 @@ pub mod uri;
 
 use self::{
     config::ConfigCommand, contact::ContactCommand, event::EventCommand, key::KeyCommand,
-    nip05::Nip05Command, nip19::Nip19Command, nip46::Nip46Command, nip47::Nip47Command,
-    relay::RelayCommand, uri::UriCommand,
+    login::LoginCommand, logout::LogoutCommand, nip05::Nip05Command, nip19::Nip19Command,
+    nip46::Nip46Command, nip47::Nip47Command, relay::RelayCommand, uri::UriCommand,
 };
 
 #[derive(Parser, Clone)]
@@ -38,6 +40,10 @@ pub struct Cli {
 
 #[derive(Subcommand, Clone)]
 enum Command {
+    /// Decrypts secret key and loads it into the shell environment
+    Login(LoginCommand),
+    /// Clears the decrypted secret key from the shell environment
+    Logout(LogoutCommand),
     /// Keys management
     Key(KeyCommand),
     /// Event management
@@ -66,6 +72,8 @@ pub async fn run() -> Result<(), Error> {
     let cli = Cli::parse();
 
     match cli.command {
+        Command::Login(login_command) => login::handle_login_command(login_command).await?,
+        Command::Logout(logout_command) => logout::handle_logout_command(logout_command).await?,
         Command::Key(key_command) => key::handle_key_command(key_command).await?,
         Command::Event(event_command) => event::handle_event_command(event_command).await?,
         Command::Contact(contact_command) => {

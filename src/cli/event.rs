@@ -1,5 +1,5 @@
 use crate::cli::CommonOptions;
-use crate::cli::common::{connect_client, get_relays};
+use crate::cli::common::{connect_client, get_relays, get_secret_key};
 use crate::config::load_config;
 use clap::{Parser, Subcommand};
 use colored::*;
@@ -88,41 +88,25 @@ pub async fn handle_event_command(command: EventCommand) -> Result<(), Error> {
             content,
             gift_wrap_recipient,
         } => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             create_text_note(content, gift_wrap_recipient, secret_key_str, relays).await?;
         }
         EventSubcommand::Get { id } => {
             get_event(id, relays).await?;
         }
         EventSubcommand::Delete { event_id } => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             delete_event(event_id, secret_key_str, relays).await?;
         }
         EventSubcommand::EncryptPayload { recipient, content } => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             let sk = SecretKey::from_bech32(&secret_key_str)?;
             let pk = PublicKey::from_bech32(&recipient)?;
             let encrypted = nip44::encrypt(&sk, &pk, &content, nip44::Version::default())?;
             println!("{encrypted}");
         }
         EventSubcommand::DecryptPayload { sender, content } => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             let sk = SecretKey::from_bech32(&secret_key_str)?;
             let pk = PublicKey::from_bech32(&sender)?;
             let decrypted = nip44::decrypt(&sk, &pk, &content)?;
@@ -134,20 +118,12 @@ pub async fn handle_event_command(command: EventCommand) -> Result<(), Error> {
             summary,
             d_identifier,
         } => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             create_long_form_post(file, title, summary, d_identifier, secret_key_str, relays)
                 .await?;
         }
         EventSubcommand::EditProfile => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             edit_profile(secret_key_str, relays).await?;
         }
     }
