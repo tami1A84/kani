@@ -1,5 +1,5 @@
 use crate::cli::CommonOptions;
-use crate::cli::common::{connect_client, get_relays};
+use crate::cli::common::{connect_client, get_relays, get_secret_key};
 use crate::config::load_config;
 use clap::{Parser, Subcommand};
 use nostr::prelude::FromBech32;
@@ -37,11 +37,7 @@ pub async fn handle_contact_command(command: ContactCommand) -> Result<(), Error
 
     match command.subcommand {
         ContactSubcommand::Add { pubkeys } => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key.clone())
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             set_contact_list(pubkeys, secret_key_str, relays).await?;
         }
         ContactSubcommand::List { pubkey } => {

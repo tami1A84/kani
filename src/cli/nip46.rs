@@ -1,3 +1,4 @@
+use crate::cli::common::get_secret_key;
 use crate::cli::CommonOptions;
 use crate::config::load_config;
 use clap::Parser;
@@ -38,11 +39,7 @@ use crate::error::Error;
 
 pub async fn handle_nip46_command(command: Nip46Command) -> Result<(), Error> {
     let config = load_config()?;
-    let secret_key_str = command
-        .common
-        .secret_key
-        .or(config.secret_key)
-        .ok_or(Error::SecretKeyMissing)?;
+    let secret_key_str = get_secret_key(&command.common, &config)?;
 
     match command.subcommand {
         Nip46Subcommand::GetPublicKey { uri } => {

@@ -1,4 +1,4 @@
-use crate::cli::common::{connect_client, get_relays};
+use crate::cli::common::{connect_client, get_relays, get_secret_key};
 use crate::cli::CommonOptions;
 use crate::config::load_config;
 use crate::error::Error;
@@ -43,22 +43,14 @@ pub async fn handle_relay_command(command: RelayCommand) -> Result<(), Error> {
         RelaySubcommand::Set {
             relays: relays_to_set,
         } => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             set_relays(relays_to_set, secret_key_str, relays).await?;
         }
         RelaySubcommand::Get { pubkey } => {
             get_relays_list(pubkey, relays).await?;
         }
         RelaySubcommand::Edit => {
-            let secret_key_str = command
-                .common
-                .secret_key
-                .or(config.secret_key)
-                .ok_or(Error::SecretKeyMissing)?;
+            let secret_key_str = get_secret_key(&command.common, &config)?;
             edit_relays(secret_key_str, relays).await?;
         }
     }

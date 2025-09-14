@@ -3,6 +3,22 @@ use crate::config::Config;
 use crate::error::Error;
 use nostr_sdk::{Client, Keys};
 
+pub fn get_secret_key(
+    common_opts: &CommonOptions,
+    config: &Config,
+) -> Result<String, Error> {
+    if let Some(sk) = &common_opts.secret_key {
+        return Ok(sk.clone());
+    }
+    if let Ok(sk) = std::env::var("NOSTR_SECRET_KEY") {
+        return Ok(sk);
+    }
+    if let Some(sk) = &config.secret_key {
+        return Ok(sk.clone());
+    }
+    Err(Error::SecretKeyMissing)
+}
+
 pub fn get_relays(common_opts: &CommonOptions, config: &Config) -> Vec<String> {
     if !common_opts.relay.is_empty() {
         common_opts.relay.clone()
