@@ -54,6 +54,32 @@ kani-nostr-cli <COMMAND>
 ### 主要コマンド
 
 <details>
+<summary>🔐 <strong>login</strong> - ログイン</summary>
+
+**使用方法:** `kani-nostr-cli login`
+
+暗号化された秘密鍵を復号し、シェル環境に読み込みます。
+
+**入力例:**
+```bash
+eval $(kani-nostr-cli login)
+```
+</details>
+
+<details>
+<summary>🔓 <strong>logout</strong> - ログアウト</summary>
+
+**使用方法:** `kani-nostr-cli logout`
+
+シェル環境から秘密鍵をクリアします。
+
+**入力例:**
+```bash
+eval $(kani-nostr-cli logout)
+```
+</details>
+
+<details>
 <summary>🔑 <strong>key</strong> - 鍵管理</summary>
 
 **使用方法:** `kani-nostr-cli key <SUBCOMMAND>`
@@ -84,6 +110,7 @@ kani-nostr-cli key generate
 | `encrypt-payload`        | ペイロードを暗号化します (NIP-44)                      |
 | `decrypt-payload`        | ペイロードを復号します (NIP-44)                      |
 | `create-long-form-post`  | 長文コンテンツ投稿を作成します (NIP-23)              |
+| `edit-profile`           | プロフィールを対話的に編集します (NIP-01)            |
 
 **入力例 (`create-text-note`):**
 ```bash
@@ -96,16 +123,14 @@ kani-nostr-cli event create-text-note --relay wss://relay.damus.io --secret-key 
 
 **使用方法:** `kani-nostr-cli contact <SUBCOMMAND>`
 
-| サブコマンド     | 説明                                        |
-| ---------------- | ------------------------------------------- |
-| `set`            | コンタクトリストを設定します (NIP-02)       |
-| `get`            | コンタクトリストを取得します (NIP-02)       |
-| `set-relays`     | リレーリストを設定します (NIP-65)           |
-| `get-relays`     | リレーリストを取得します (NIP-65)           |
+| サブコマンド | 説明                                     |
+| ------------ | ---------------------------------------- |
+| `add`        | コンタクトリストに公開鍵を追加します     |
+| `list`       | 公開鍵のコンタクトリストを表示します     |
 
-**入力例 (`set`):**
+**入力例 (`add`):**
 ```bash
-kani-nostr-cli contact set --relay wss://relay.damus.io --secret-key <nsec_secret_key> <npub_key_1> <npub_key_2>
+kani-nostr-cli contact add <npub_key_1> <npub_key_2> --secret-key <nsec_secret_key>
 ```
 </details>
 
@@ -198,6 +223,21 @@ kani-nostr-cli nip47 get-info "nostr+walletconnect://<wallet_hex_pubkey>?relay=<
 **入力例:**
 ```bash
 kani-nostr-cli uri nostr:npub1...
+```
+</details>
+
+<details>
+<summary>⚙️ <strong>config</strong> - 設定管理</summary>
+
+**使用方法:** `kani-nostr-cli config <SUBCOMMAND>`
+
+| サブコマンド | 説明                             |
+| ------------ | -------------------------------- |
+| `path`       | 設定ファイルのパスを表示します   |
+
+**入力例 (`path`):**
+```bash
+kani-nostr-cli config path
 ```
 </details>
 
