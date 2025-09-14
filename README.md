@@ -25,6 +25,24 @@
 cargo install kani-nostr-cli
 ```
 
+## 🚀 オンボーディング (Onboarding)
+
+`kani-nostr-cli` を初めて使う方のために、ウィザード形式で簡単に鍵を生成する方法を紹介します。リポジトリをクローンした直後など、まだインストールしていない場合は以下のコマンドを実行してください。
+
+```bash
+cargo run -- key generate --wizard
+```
+
+すでに `cargo install` を実行済みの場合は、以下のコマンドで実行できます。
+
+```bash
+kani-nostr-cli key generate --wizard
+```
+
+このコマンドを実行すると、対話形式でニーモニック（秘密のバックアップフレーズ）の表示、パスワードによる秘密鍵の暗号化（NIP-49）までを簡単に行うことができます。
+
+---
+
 ## 🚀 使い方 (Usage)
 
 `kani-nostr-cli` はサブコマンドベースで動作します。
